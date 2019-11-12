@@ -1,5 +1,5 @@
 ### BIGCAAT: BIGDAWG Integrated Genotype Converted Amino Acid Testing
-### Version 0.3.3
+### Version 0.3.4
 ### Authors: Liva Tran, Vinh Luu, Steven J. Mack
 
 ##Combines Datafile Procession, AA extraction, and combination analyzer into one function. Changes made for redundancy.
@@ -275,7 +275,8 @@ variantAAextractor<-function(loci,genotypefiles){
     #splits AA_sequence column at every amino acid, resulting in a list of split amino acids for each row
     pepsplit[[loci[i]]] <- sapply(AA_segments[[loci[i]]][,"AAsequence"],strsplit,split="*")
     
-    #fills in space with NA for alleles with premature termination to make it the same number of characters
+
+        #fills in space with NA for alleles with premature termination to make it the same number of characters
     #as the reference sequence 
     pepsplit[[loci[i]]]<- lapply(pepsplit[[loci[i]]],function(x) c(x,rep("NA",nchar(refexon[[loci[i]]])-length(x))))
     
@@ -468,7 +469,6 @@ variantAAextractor<-function(loci,genotypefiles){
       for(k in 1:length(names(variantAApositions[[loci[[i]]]]))){
         if(any(colnames(all_gdata[[loci[[i]]]][[j]])==names(variantAApositions[[loci[[i]]]])[[k]])){variantAApositions[[loci[[i]]]][names(variantAApositions[[loci[[i]]]])==names(variantAApositions[[loci[[i]]]])][[k]]<-cbind.data.frame(trimmed_allele=all_gdata[[loci[[i]]]][[1]][,5], all_gdata[[loci[[i]]]][[j]][colnames(all_gdata[[loci[[i]]]][[j]])==names(variantAApositions[[loci[[i]]]])[[k]]], stringsAsFactors=FALSE)}}}
     
-    
     #creates a dataframe that will go into BIGDAWG,     #where each variant position has 2 columns to match each locus specific
     #column in genotype data
     #columns 1 and 2 of this dataframe are adapted from genotype data columns
@@ -484,7 +484,7 @@ variantAAextractor<-function(loci,genotypefiles){
     #renames column names 
     colnames(mastertable[[loci[[i]]]])<-c("SampleID", "Disease", unlist(rep_variantAA[[loci[[i]]]]))
     
-    
+
     
     for(u in 1:length(gdata[loci[[i]]==colnames(gdata)])){
       for(s in 1:length(variantAApositions[[loci[[i]]]])){
@@ -502,6 +502,7 @@ variantAAextractor<-function(loci,genotypefiles){
 }
   mastertable #Vinh's addition
 }
+
 
 ##Part 3 - Combination Analyzer##
 combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDLO_list, UMLO_list, variantAAtable, loop){
@@ -534,7 +535,9 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
       #finds OR difference between BOLO and dummy ORs -- subs out "-", for a blank, since only evaluating absolute value of OR diff
       #adds difference to new column in BOLO 
       BOLO[i,8]<-gsub("-", "", as.numeric(BOLO[i,]$OR)-as.numeric(subset(subset(dummy_KDLO, grepl(BOLO[i,][[1]], dummy_KDLO[,1])), grepl(BOLO[i,][[2]], subset(dummy_KDLO, grepl(BOLO[i,][[1]], dummy_KDLO[,1]))[,2]))[,3]))[[1]]
-    }}
+    }
+    names(BOLO)[8]<-"OR.diff.A"
+  }
   
   #subsets out binned alleles and any alleles with NA combinations
   if(counter>0){
@@ -544,6 +547,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(counter==1){
     for(i in 1:nrow(BOLO)){
       BOLO[i,8]<-gsub("-", "", as.numeric(BOLO[i,]$OR)-as.numeric(subset(subset(KDLO, KDLO[,1] %in% strsplit(BOLO[i,][[1]], ":")[[1]][[1]]), subset(KDLO, KDLO[,1] %in% strsplit(BOLO[i,][[1]], ":")[[1]][[1]])$Allele %in% strsplit(BOLO[i,][[2]], "~")[[1]][[1]])$OR))}
+      names(BOLO)[8]<-"OR.diff.A"
   }
   
   #ends function if BOLO is empty 
@@ -555,8 +559,10 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(counter>1){
     for(i in 1:nrow(BOLO)){
       BOLO[i,8]<-gsub("-", "", as.numeric(BOLO[i,]$OR)- as.numeric(subset(subset(KDLO, KDLO[,1] %in% paste(strsplit(BOLO[i,][[1]], ":")[[1]][c(1:length(strsplit(KDLO$Locus, ":")[[1]]))], collapse=":")), subset(KDLO, KDLO[,1] %in% paste(strsplit(BOLO[i,][[1]], ":")[[1]][c(1:length(strsplit(KDLO$Locus, ":")[[1]]))], collapse=":"))$Allele %in%paste(strsplit(BOLO[i,][[2]], "~")[[1]][c(1:length(strsplit(KDLO$Locus, ":")[[1]]))], collapse="~"))$OR))
+      names(BOLO)[8]<-"OR.diff.A"
       BOLO[i,9]<-gsub("-", "", as.numeric(BOLO[i,]$OR)-as.numeric(subset(subset(KDLO_list[[1]], KDLO_list[[1]]$Locus %in% strsplit(BOLO[i,][[1]], ":")[[1]][[length(unlist(strsplit(BOLO[i,][[1]], ":")))]]), subset(KDLO_list[[1]], KDLO_list[[1]]$Locus %in% strsplit(BOLO[i,][[1]], ":")[[1]][[length(unlist(strsplit(BOLO[i,][[1]], ":")))]])$Allele %in% strsplit(BOLO[i,][[2]], "~")[[1]][[length(unlist(strsplit(BOLO[i,][[1]], ":")))]])$OR))
-    }}
+      names(BOLO)[9]<-"OR.diff.B"
+      }}
   
   #subsets out NS values 
   KDLO<-subset(BOLO,BOLO[,7]=="*")
@@ -581,7 +587,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(counter>1){
     
     #subsets out OR differences smaller than 0.1 
-    KDLO<-subset(KDLO, KDLO[,9]>0.1)}
+  KDLO<-subset(KDLO, KDLO[,9]>0.1)}
   KDLO<-subset(KDLO, KDLO[,8]>0.1)
   
   #statement for returning KDLO if KDLO=0
@@ -720,9 +726,6 @@ runCombiAnalyzer <- function(loci, variantAAtable, loop) {
     # cat("BIGCAAT:", counter,ifelse(counter==1,"iteration has","iterations have"),"been run \n", sep=" ") #### SJM cleaning up messaging
     cat("Evaluating",ifelse(counter==0,"initial comparison to null hypothesis \n",paste(counter,"-mers \n",sep=""))) ### SJM more accurate messaging
     
-    #saves each iteration to "interim"
-    cat(counter, "\n")
-    
     interim<-combiAnalyzer(loci, myData, BOLO ,KDLO, UMLO, counter, motif_list, KDLO_list, UMLO_list, variantAAtable, loop)
   
     #adds 1 to the counter with each iteration 
@@ -777,18 +780,71 @@ BIGCAAT <- function(loci, GenotypeFile) {
   CombiData <- vector("list",length(loci))
   names(CombiData) <- loci
   
+  for(z in 1:length(CombiData)){
   #specifications for predisposing and protective OR analysis added by LT
-  CombiData <- sapply(c("Predisposing", "Protective"), function(x) NULL)
+  CombiData[[z]] <- sapply(c("Predisposing", "Protective"), function(x) NULL)
   
-  for(loop in 1:length(CombiData)){
+  for(loop in 1:length(CombiData[[z]])){
     if(loop==1){cat("Predisposing OR analysis", sep="\n")}
     if(loop==2){cat("Protective OR analysis", sep="\n")}
   
   for (p in 1:length(loci)) {
     cat("Analyzing the",loci[p],"locus\n",sep=" ") ### SJM added notification
-    CombiData[[loop]][[loci[p]]] <- runCombiAnalyzer(loci[p], AAData, loop) #LT added loop as parameter
+    CombiData[[loci[p]]][[loop]] <- runCombiAnalyzer(loci[p], AAData, loop) #LT added loop as parameter
   }
-    }
+  }
+}
   CombiData
 }
- 
+
+#BIDS (BIGCAAT Data Summarizer)
+##summarizes BIGCAAT data by showing which alleles significant alleles belong to
+#under development
+BIDS<-function(locus, dataset){
+  
+MS_Data <- read.table(dataset ,header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
+  
+#run BIGCAAT
+BIGCAAT_results<-BIGCAAT(locus, dataset)
+
+#extract last iteration of BIGCAAT results -- filter to only significant values and respective OR values for each summary
+predisposing_summary<-BIGCAAT_results[[locus]]$Predisposing$KDLO[[length(BIGCAAT_results[[locus]]$Predisposing$KDLO)]][order(BIGCAAT_results[[locus]]$Predisposing$KDLO[[length(BIGCAAT_results[[locus]]$Predisposing$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR>1)
+protective_summary<-BIGCAAT_results[[locus]]$Protective$KDLO[[length(BIGCAAT_results[[locus]]$Protective$KDLO)]][order(BIGCAAT_results[[locus]]$Protective$KDLO[[length(BIGCAAT_results[[locus]]$Protective$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR<1)
+
+#find locus specific alleles in MS data 
+ms_alleles <- sort(paste(locus,unlist(unique(c(MS_Data[colnames(MS_Data)==locus][[1]],MS_Data[colnames(MS_Data)==locus][[2]])))[unlist(unique(c(MS_Data[colnames(MS_Data)==locus][[1]],MS_Data[colnames(MS_Data)==locus][[2]])))!=""],sep="*"))
+
+#build motif, find alleles that contain the motif, and find which of those alleles are in the MS dataset
+#input motif and alleles with the motif from MS dataset into appropriate column
+
+#predisposing summary
+for(i in 1:nrow(predisposing_summary)) {
+  motif<-paste(locus, sep="*", paste0(paste(str_split(predisposing_summary$Locus, ":")[[i]], str_split(predisposing_summary$Allele, "~")[[i]], sep=""), collapse="~"))
+  alleles <- findMotif(motif)$trimmed_allele
+  ms_allele <- paste(unique(alleles[alleles %in% ms_alleles]),collapse=",")
+  
+  predisposing_summary$motif[i] <- motif
+  predisposing_summary$alleles[i] <- ms_allele
+}
+
+#protective summary
+for(i in 1:nrow(protective_summary)) {
+  motif<-paste(locus, sep="*", paste0(paste(str_split(protective_summary$Locus, ":")[[i]], str_split(protective_summary$Allele, "~")[[i]], sep=""), collapse="~"))
+  alleles <- findMotif(motif)$trimmed_allele
+  ms_allele <- paste(unique(alleles[alleles %in% ms_alleles]),collapse=",")
+  
+  protective_summary$motif[i] <- motif
+  protective_summary$alleles[i] <- ms_allele
+}
+return(list(predisposing_summary, protective_summary))
+}
+
+
+#example usage
+BIDS("DRB1", "../ltmasterscoding/MS_EUR.txt")
+
+
+
+
+
+
