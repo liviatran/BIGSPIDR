@@ -836,14 +836,15 @@ for(i in 1:nrow(protective_summary)) {
   protective_summary$motif[i] <- motif
   protective_summary$alleles[i] <- ms_allele
 }
-return(list(predisposing_summary, protective_summary))
+
+BIGCAAT_results[[locus]]$Predisposing[["Predisposing Summary"]]<-predisposing_summary
+BIGCAAT_results[[locus]]$Protective[["Protective Summary"]]<-protective_summary
+return(BIGCAAT_results)
 }
 
 
 #example usage
-BIDS("DRB1", "../ltmasterscoding/MS_EUR.txt")
-
-
+x<-BIDS("DRB1", "../ltmasterscoding/MS_EUR.txt")
 
 
 
