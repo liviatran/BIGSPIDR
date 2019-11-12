@@ -1,6 +1,6 @@
-#atlasMaker 0.1
+#atlasMaker 0.2
 #by: Livia Tran
-#11/10/19
+#11/12/19
 
 ###This function downloads nucleotide alignment sequences from the ANHIG/IMGTHLA Github Repository
 #and finds exon boundaries within the nucleotide alignment to determine which amino acids in the 
@@ -107,7 +107,8 @@ return(atlas)
 }
 
 #usage
-AA_atlas<-atlasMaker(c("A","B","C","DRB1","DPB1","DQB1"))
+AA_atlas<-atlasMaker(c('A','B','C','DMA','DMB','DOA','DOB','DPA1','DPB1','DQA1','DQA2','DQB1','DRA','DRB','E','F','G','HFE','MICA','MICB','TAP1','TAP2'))
 
 save(AA_atlas, file="AA_atlas.rda")
+
 
