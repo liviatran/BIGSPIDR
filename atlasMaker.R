@@ -1,16 +1,17 @@
-#atlasMaker 0.2
+#atlasMaker 0.3
 #by: Livia Tran
-#11/12/19
+#11/14/19
 
 ###This function downloads nucleotide alignment sequences from the ANHIG/IMGTHLA Github Repository
 #and finds exon boundaries within the nucleotide alignment to determine which amino acids in the 
 #protein alignment belong to which exon
 
+
 library(stringr)
 library(DescTools)
 
 atlasMaker<-function(loci){
-nuc<-nuc_df<-extract_ref<-nuc_extract<-start<-end<-pipe_split<-boundary_split<-atlas<-sapply(loci, function(x) NULL)
+pep_start<-nuc<-nuc_df<-extract_ref<-nuc_extract<-start<-end<-pipe_split<-boundaries<-boundary_split<-atlas<-sapply(loci, function(x) NULL)
 
 for(i in 1:length(loci)){
 #download nucleotide alignment from ANHIG/IMGTHLA Github repository
@@ -31,6 +32,9 @@ nuc[[loci[i]]]  <- strsplit(nuc[[loci[i]]]," ", fixed=T)
 
 #binds the previously split strings by row 
 nuc[[loci[i]]] <- do.call(rbind,nuc[[loci[i]]])
+
+#extracts beginning alignment enumeration
+pep_start[[loci[[i]]]]<-as.numeric(gsub("codon", "", nuc[[loci[[i]]]][[2,2]]))
 
 colnames(nuc[[loci[[i]]]])<-c(paste(loci[[i]], "alleles", sep="_"), "pepseq")
 
@@ -54,7 +58,6 @@ for(k in 1:length(start[[loci[i]]])){
     start[[loci[i]]]<-as.numeric(grep("cDNA", nuc[[loci[i]]]))
     end[[loci[i]]] <- as.numeric(c(start[[loci[i]]][2:length(start[[loci[i]]])]-1,nrow(nuc[[loci[i]]])))}
 }
-
 
 #subsets nucleotide alignment based on start and end blocks
 for(e in 1:length(start[[loci[[i]]]])){
@@ -93,11 +96,19 @@ atlas[[loci[[i]]]]<-data.frame(matrix("", ncol=2, nrow =(length(boundary_split[[
 
 colnames(atlas[[loci[[i]]]])<-c("Exon", "Boundary")
 
-boundaries<-sapply(loci, function(x) NULL)
-
+#pastes together individual nucleotides to form peptides, counts number of peptides 
+#present between boundaries
 for(q in 1:(length(boundary_split[[loci[[i]]]])-1)){
   j <- seq.int(1L,length(boundary_split[[loci[[i]]]][[q]]),by = 3L)
   boundaries[[loci[[i]]]][[q]]<-length(paste0(boundary_split[[loci[[i]]]][[q]][j],boundary_split[[loci[[i]]]][[q]][j+1], boundary_split[[loci[[i]]]][[q]][j+2]))
+}
+
+#breaks out of for loop to add alignment start enumeration to actual start
+boundaries[[loci[[i]]]][[1]]<-boundaries[[loci[[i]]]][[1]]+pep_start[[loci[[i]]]]
+  
+#fills in atlas information
+#boundaries obtained by adding up cumulative lengths
+for(q in 1:(length(boundary_split[[loci[[i]]]])-1)){
   atlas[[loci[[i]]]][q,1]<-paste("exon", paste(seq(1, length(boundary_split[[loci[[i]]]]))[[q]], seq(1, length(boundary_split[[loci[[i]]]]))[[q+1]], sep=":"), sep="_")
   atlas[[loci[[i]]]][q,2]<-as.numeric((0 + cumsum(boundaries[[loci[[i]]]])[[q]]))
   atlas[[loci[[i]]]][,2]<-as.numeric(atlas[[loci[[i]]]][,2])
