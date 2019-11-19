@@ -121,7 +121,7 @@ atlasMaker<-function(loci){
 
 
 #usage
-AA_atlas<-atlasMaker(c('A','B','C','DMA','DMB','DOA','DOB','DPA1','DPB1','DQA1','DQA2','DQB1','DRA','DRB','E','F','G','HFE','MICA','MICB','TAP1','TAP2'))
+AA_atlas<-atlasMaker(c('A','B','C','DMA','DMB','DOA','DOB','DPA1','DPB1','DQA1','DQA2','DQB1','DRA','DRB1','E','F','G','HFE','MICA','MICB','TAP1','TAP2'))
 
 save(AA_atlas, file="AA_atlas.rda")
 
