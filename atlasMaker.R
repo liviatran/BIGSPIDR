@@ -77,12 +77,19 @@ atlasMaker<-function(loci){
     #split reference sequences at pipes
     pipe_split[[loci[[i]]]]<-strsplit(extract_ref[[loci[[i]]]][,2], "|", fixed = T)
     
+    
     for(z in 1:(length(pipe_split[[loci[[i]]]][[1]])-1)){
-      pipe_split[[loci[[i]]]][[1]][z]<-paste(pipe_split[[loci[[i]]]][[1]][z], StrLeft(pipe_split[[loci[[i]]]][[1]][z+1], 2), sep="")
+      if(StrLeft(pipe_split[[loci[[i]]]][[1]][z], 2)!="..") {
+        pipe_split[[loci[[i]]]][[1]][z]<-paste(pipe_split[[loci[[i]]]][[1]][z], StrLeft(pipe_split[[loci[[i]]]][[1]][z+1], 2), sep="")
+      }
+      
+      if(StrLeft(pipe_split[[loci[[i]]]][[1]][z], 2)=="..") {
+        pipe_split[[loci[[i]]]][[1]][z]<-pipe_split[[loci[[i]]]][[1]][z]
+      }
+      
       if(StrLeft(pipe_split[[loci[[i]]]][[1]][z+1], 2)=="..") {next}
       pipe_split[[loci[[i]]]][[1]][z+1]<-str_replace(pipe_split[[loci[[i]]]][[1]][z+1], substr(pipe_split[[loci[[i]]]][[1]][z+1],1, 2), "")
-    }
-    
+    } 
     #splits every nucleotide within each boundary, and removes InDels
     for(k in 1:length(pipe_split[[loci[[i]]]][[1]])){
       boundary_split[[loci[[i]]]][[k]]<-strsplit(pipe_split[[loci[[i]]]][[1]][[k]], "*")[[1]]
@@ -115,14 +122,14 @@ atlasMaker<-function(loci){
       atlas[[loci[[i]]]][q,1]<-paste("exon", paste(seq(1, length(boundary_split[[loci[[i]]]]))[[q]], seq(1, length(boundary_split[[loci[[i]]]]))[[q+1]], sep=":"), sep="_")
       positions[[q]]<-as.numeric((0 + cumsum(boundaries[[loci[[i]]]])[[q]]))}
     atlas[[loci[[i]]]]$Boundary<-positions
-    } 
+  } 
   return(atlas)
 }
-
 
 #usage
 AA_atlas<-atlasMaker(c('A','B','C','DMA','DMB','DOA','DOB','DPA1','DPB1','DQA1','DQA2','DQB1','DRA','DRB1','E','F','G','HFE','MICA','MICB','TAP1','TAP2'))
 
 save(AA_atlas, file="AA_atlas.rda")
+
 
 
