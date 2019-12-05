@@ -10,9 +10,9 @@ require(stringr)
 require(BIGDAWG)
 require(gtools)
 require(dplyr) ## LT
+require(SSHAARP)
 
 load("AA_atlas.rda")
-
 
 ##Part 1 - Datafile Processing##
 Datafile_Processing <- function(locus, Genotype_Data) {
@@ -23,7 +23,7 @@ Datafile_Processing <- function(locus, Genotype_Data) {
   for (x in seq(3,length(Genotype_Data),2)) {
     if (colnames(Genotype_Data[x]) %in% locus) {
       Allele_Columns <- Genotype_Data[,x:(x+1)] ## not a list of lists
-    #  print(paste("Column pairs:", x,(x+1), sep = " ")) ### SJM silencing unnessary messaging 
+      #  print(paste("Column pairs:", x,(x+1), sep = " ")) ### SJM silencing unnessary messaging 
       colnames(Allele_Columns) <- colnames(Genotype_Data)[x:(x+1)]
       Final_Data <- cbind(Final_Data, Dataset_Allele_Check_V2(Allele_Columns))
     }
@@ -49,14 +49,14 @@ Dataset_Allele_Check_V2 <- function(Alleles) {
   
   #Calculates percentage of the data that is 1 field, outputs an integer value denoting how many 1 field alleles were in the data and outputs a percentage.
   percentage <- (count / (nrow(Alleles) * 2))
- # print(paste("The number of single field Alleles is:", count, sep = " "))  ### SJM silencing unnecessary messages
- # print(paste("The percentage of single field Alleles in this column pair is:", percentage, sep = " ")) ### SJM as above 
+  # print(paste("The number of single field Alleles is:", count, sep = " "))  ### SJM silencing unnecessary messages
+  # print(paste("The percentage of single field Alleles in this column pair is:", percentage, sep = " ")) ### SJM as above 
   
   #Checks if the percentage of single field alleles is below a certain threshold. This is currently not changable by the user but can be implemented.
   if (percentage > .05) {
     stop("This column pair has too many alleles that are single field.")
   } else {
-  # print("This column pair is good to go!") ### SJM silencing unnecessary messages
+    # print("This column pair is good to go!") ### SJM silencing unnecessary messages
   }
   Final_Alleles
 }
@@ -77,6 +77,7 @@ countSpaces <- function(x){
   }
   coll
 }
+
 
 CWDverify <- function(){
   require(data.table)
@@ -120,13 +121,19 @@ CWDverify <- function(){
   CWD$data
 }
 
+dupdiff <- function(x,y) x[-match(
+  make.unique(as.character(y)),
+  make.unique(as.character(x)),
+  nomatch=0
+)]
+
 variantAAextractor<-function(loci,genotypefiles){
   
   #reads in genotype data  
-  #gdata <- read.table(genotypefiles, sep="\t", header=T, check.names = F, stringsAsFactors = F)
+  gdata <- read.table("../ltmasterscoding/MS_EUR.txt", sep="\t", header=T, check.names = F, stringsAsFactors = F)
   
-  gdata <- genotypefiles
-  gdata <- Datafile_Processing(loci, gdata) #Vinh's function
+  #gdata <- genotypefiles
+  #gdata <- Datafile_Processing(loci, gdata) #Vinh's function
   
   #sets blank cells to NA 
   #if cells do not contain NA, locus names are pasted to the allele in the MS_file
@@ -138,190 +145,12 @@ variantAAextractor<-function(loci,genotypefiles){
   #removes rows with only ALL NA data 
   gdata<-gdata[!(rowSums(is.na(gdata))==ncol(gdata)-2),]
   
+  #empty variables for exon_extractor function   
+  AA_segments<-variantAApositions<-geno_exonlist<-missing_geno_output<-missing_geno<-rep_variantAA<-mastertablecols<-mastertable<-position_parsed<-nonCWD_checked<-nonCWDtrunc<-singleAA_exon<-singleAA_alleles<-pastedAAseq<-columns<-all_gdata<-genotype_variants<-geno_alleles<-AA_segments<-AA_aligned <-refexon<-pepsplit<-alignment<-exonlist<- sapply(loci, function(x) NULL)
   
-  #creates empty variables for future for loops
-  start<-end<-alignment<-list()
-  
-  #creates empty variables where each element is named after the used loci 
-  
-  #empty variables for correspondence table 
-  inDels<-corr_table<-cols<-downloaded_segments<-w<-alignment_positions<-alignment_length<-alignment_start<-prot_extractions<-refblock_number<-end_char<-space_diff<-
-    
-    #empty variables for exon_extractor function   
-    variantAApositions<-geno_exonlist<-missing_geno_output<-missing_geno<-rep_variantAA<-mastertablecols<-mastertable<-position_parsed<-nonCWD_checked<-nonCWDtrunc<-singleAA_exon<-singleAA_alleles<-pastedAAseq<-columns<-all_gdata<-genotype_variants<-geno_alleles<-AA_segments<-AA_aligned <-refexon<-pepsplit<-alignment<-exonlist<- sapply(loci, function(x) NULL)
-  
-  #begin for loop   
   for(i in 1:length(loci)){
-    #downloads relevant locus alignment file -- readLines allows for space preservation, which is important in
-    #finding where the alignment sequence starts 
-    #alignment[[loci[i]]] <- readLines(paste("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/alignments/",paste(ifelse(loci[[i]]=="DRB1","DRB",loci[[i]]),"_prot.txt",sep=""),sep=""),-1,ok=TRUE,skipNul = FALSE)
-    alignment[[loci[i]]] <- readLines(paste("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/alignments/",paste(ifelse(loci[[i]] %in% c("DRB1", "DRB3", "DRB4", "DRB5"),"DRB",loci[[i]]),"_prot.txt",sep=""),sep=""),-1,ok=TRUE,skipNul = FALSE)
     
-    #alters alignment file by cutting out non-pertinent information in beginning
-    #and endind of alignment file 
-    alignment[[loci[i]]] <- head(alignment[[loci[i]]],-3)
-    alignment[[loci[i]]] <- tail(alignment[[loci[i]]],-7)
-    
-    #see countSpaces function at beginning of script 
-    #Counts difference between Prot to -30 and beginning of Prot to -30 + 1 due to zero number indexing to find where
-    #the alignment sequence actually starts 
-    space_diff[[loci[i]]]<-(nchar(strsplit(alignment[[loci[i]]][3], " ")[[1]][2])+countSpaces(alignment[[loci[i]]][3])[2]+1)-countSpaces(alignment[[loci[i]]][2])[1]
-    
-    #reduces repeated whitespace in alignment file and removes rows with empty values for proper
-    #start and stop subsetting 
-    alignment[[loci[i]]] <-str_squish(alignment[[loci[i]]])
-    alignment[[loci[i]]] <-alignment[[loci[i]]][-which(alignment[[loci[i]]] == "")]
-    
-    #determines positions of "Prot" and the end of that reference block segment
-    start[[loci[i]]]<-as.numeric(grep("Prot", alignment[[loci[i]]]))
-    end[[loci[i]]] <- as.numeric(c(start[[loci[i]]][2:length(start[[loci[i]]])]-1,length(alignment[[loci[i]]])))
-    
-    #counts number of characters in the very last allele to add onto the last Prot enumeration block
-    #to obtain end length 
-    end_char[[loci[i]]]<-nchar(sapply(strsplit(gsub(" ", "", sub(" ", "~", str_squish(tail(alignment[[loci[i]]], 1)))), "~"), "[", 2))-1
-    
-    #extracts rows with "Prot" and reference sequence position information 
-    #extracts only relevant reference sequence positions
-    #NOTE: the first row containing "Prot" contains two numbers -- -30 and 1 -- where only -30, is extracted,
-    #as the actual sequence start will always be 1 
-    for (j in 1:length(start[[loci[i]]])){
-      
-      prot_extractions[[loci[i]]][j]<-strsplit(alignment[[loci[i]]][start[[loci[i]]][j]], " ")
-      
-      refblock_number[[loci[i]]][j]<-as.numeric(sapply(prot_extractions[[loci[i]]][j], "[", 2))
-      
-      
-      #determines the alignment start by adding -30 to the difference between white spaces found above 
-      alignment_start[[loci[i]]]<-refblock_number[[loci[i]]][1]+space_diff[[loci[i]]]
-    }
-    
-    #closes all white space in the alignment file, except for the white space separating the allele and peptide sequence
-    alignment[[loci[i]]] <-paste(substr(alignment[[loci[i]]],1,regexpr(" ",text = alignment[[loci[i]]],fixed = TRUE)), gsub(" ","",substr(alignment[[loci[i]]],regexpr(" ",text = alignment[[loci[i]]],fixed = TRUE),nchar(alignment[[loci[i]]]))),sep = "")
-    
-    #string splits at white spaces to yield allele and peptide sequences
-    alignment[[loci[i]]]  <- strsplit(alignment[[loci[i]]]," ", fixed=T)
-    
-    #binds the previously split strings by row 
-    alignment[[loci[i]]] <- do.call(rbind,alignment[[loci[i]]])
-    
-    #if the pepseq column is equal to the allele column due to premature peptide termination, 
-    #insert a blank in place of the allele in the pepseq column 
-    alignment[[loci[i]]][which(alignment[[loci[i]]][,1]==alignment[[loci[i]]][,2]),2] <- ""
-    
-    #renames columns to "alleles" and "pepseq"
-    colnames(alignment[[loci[i]]])<-c(paste(loci[[i]], "alleles", sep="_"), "pepseq")
-    
-    #due to ANHIG formatting, cases where an allele contains newly reference peptide sequences will not 
-    #contain the same number of rows as previous reference peptide blocks
-    #this for loop is invoked to add "."for all other alleles for each character in the newly reference peptide
-    #to preserve structural integrity 
-    for(k in 1:length(start[[loci[i]]])){
-      if(nrow(alignment[[i]][start[[loci[i]]][k]:end[[loci[i]]][k],])!=nrow(alignment[[loci[i]]][start[[loci[i]]][1]:end[[loci[i]]][1],])){
-        x<-as.data.frame(alignment[[loci[i]]][,1][start[[loci[i]]][1]:end[[loci[i]]][1]][-c(1,2)], stringsAsFactors = F)
-        colnames(x)<-paste(loci[[i]], "alleles", sep="_")
-        x<-cbind.data.frame(x, pepseq=as.character(paste(rep(".", nchar(tail(alignment[[loci[i]]][,2], 1))), collapse = "")), stringsAsFactors=FALSE)
-        y<-data.frame(tail(alignment[[loci[i]]],1), stringsAsFactors = F)
-        x$pepseq[match(y[,1], x[,1])]<-y$pepseq
-        alignment[[loci[i]]]<-as.matrix(rbind(head(alignment[[loci[i]]], -1), x))
-        start[[loci[i]]]<-as.numeric(grep("Prot", alignment[[loci[i]]]))
-        end[[loci[i]]] <- as.numeric(c(start[[loci[i]]][2:length(start[[loci[i]]])]-1,nrow(alignment[[loci[i]]])))}}
-    
-    #if a locus has extra formatting, resulting in unqeual rows, start and end will be updated to reflect subsetting
-    #if a locus has no extra formatting, start and end will remain the same, as procured by earlier code
-    for(e in 1:length(start[[loci[i]]])){
-      AA_segments[[loci[i]]]<-cbind(AA_segments[[loci[i]]], alignment[[loci[i]]][start[[loci[i]]][e]:end[[loci[i]]][e],])}
-    
-    #removes first two rows containing AA position and "Prot"
-    AA_segments[[loci[i]]] <- AA_segments[[loci[i]]][-c(1,2),]
-    
-    #designates columns to be combined as every other so allele names are not included
-    #in pasting all the amino acid sequences together 
-    cols<-seq(0, ncol(AA_segments[[loci[i]]]), by=2)
-    AA_segments[[loci[i]]]<-cbind(AA_segments[[loci[i]]][,1], apply(AA_segments[[loci[i]]][,cols], 1 ,paste, collapse = ""))
-    
-    #creates a new matrix with the number of columns equal to the number of characters in the reference sequence 
-    corr_table[[loci[i]]]<-matrix(NA, nrow = 2, ncol = as.numeric(nchar(AA_segments[[loci[i]]][,2][1]))) ### SJM added NA argument
-    
-    #determines alignment length based on the total number of characters plus the alignment start (which is negative ) 
-    alignment_length[[loci[i]]]<-as.numeric(nchar(AA_segments[[loci[i]]][,2][1]))+alignment_start[[loci[[i]]]]
-    
-    #pastes alignment_start to alignment_length together in sequential order, with inDels accounted for 
-    #captures output as "w"
-    w[[i]] <- capture.output(cat(alignment_start[[loci[i]]]:alignment_length[[loci[i]]]))
-    
-    #splits string formed by cat for separate character variables
-    alignment_positions[[loci[i]]]<-as.character(unlist(strsplit(w[[loci[i]]], " ")))
-    
-    #eliminates "0", as the alignment sequence from ANHIG does not contain 0
-    alignment_positions[[loci[i]]]<-alignment_positions[[loci[i]]][-which(alignment_positions[[loci[i]]] == 0)]
-    
-    #contains alignment sequence information 
-    corr_table[[loci[i]]][2,]<-alignment_positions[[loci[i]]]
-    
-    #string splits to extract locus in the allele name
-    #assigns to new variable "AA_aligned"
-    AA_aligned[[loci[i]]]<- as.matrix(do.call(rbind,strsplit(AA_segments[[loci[i]]][,1],"[*]")))
-    
-    #adds a new column of pasted locus and trimmed two field alleles to AA_aligned
-    AA_aligned[[loci[i]]]<- cbind(AA_aligned[[loci[i]]], paste(AA_aligned[[loci[i]]][,1], apply(AA_aligned[[loci[i]]],MARGIN=c(1,2),FUN=GetField,Res=2)[,2], sep="*"))
-    
-    #binds AA_aligned and AA_segments -- renames columns 
-    AA_segments[[loci[i]]] <- cbind(AA_aligned[[loci[i]]], AA_segments[[loci[i]]])
-    colnames(AA_segments[[loci[i]]]) <- c("locus", "full_allele", "trimmed_allele", "allele_name", "AAsequence")
-    
-    #sets refexon to a reference peptide for each HLA locus based on the reference sequences in AA_segments 
-    refexon[[loci[i]]] <- rbind(AA_segments[[loci[i]]][1,])[which(rbind(AA_segments[[loci[i]]][1,])[,"locus"]==loci[[i]]),'AAsequence']
-    
-    #splits AA_sequence column at every amino acid, resulting in a list of split amino acids for each row
-    pepsplit[[loci[i]]] <- sapply(AA_segments[[loci[i]]][,"AAsequence"],strsplit,split="*")
-    
-
-        #fills in space with NA for alleles with premature termination to make it the same number of characters
-    #as the reference sequence 
-    pepsplit[[loci[i]]]<- lapply(pepsplit[[loci[i]]],function(x) c(x,rep("NA",nchar(refexon[[loci[i]]])-length(x))))
-    
-    #binds pep_split together by element in its previous list form by row
-    pepsplit[[loci[i]]]<- do.call(rbind,pepsplit[[loci[i]]])
-    
-    #nullifies row names 
-    rownames(pepsplit[[loci[i]]]) <- NULL
-    
-    #binds all columns together to form desired ouput, as described above
-    AA_segments[[loci[i]]] <- cbind.data.frame(AA_segments[[loci[i]]][,1:4],pepsplit[[loci[i]]], stringsAsFactors=FALSE)
-    
-    #finds positions in AA_segments that have ".", indicating an inDel 
-    inDels[[loci[[i]]]]<-colnames(AA_segments[[loci[[i]]]][1, 5:ncol(AA_segments[[loci[[i]]]])][AA_segments[[loci[[i]]]][1, 5:ncol(AA_segments[[loci[[i]]]])] %in% "."])
-    
-    #inputs AA_segments alignment sequence into the corr_table with "InDel" still present
-    corr_table[[loci[[i]]]][1,]<-names(AA_segments[[loci[[i]]]][5:ncol(AA_segments[[loci[[i]]]])])
-    
-    if(length(inDels[[loci[[i]]]])!=0){
-      for(b in 1:length(inDels[[loci[[i]]]])){
-        corr_table[[loci[[i]]]][2,][inDels[[loci[[i]]]][[b]]==corr_table[[loci[[i]]]][1,]]<-paste("InDel", b, sep="_")
-      }
-    }
-    
-    #if alignment start is position 1, alignment start does not need to be accounted for
-    #when determining length of corr_table in re-enumerating corr_table with InDels
-    if(alignment_start[[loci[[i]]]]==1){
-      
-      #fixes enumerations following "InDel"
-      corr_table[[loci[[i]]]][2,][!grepl("InDel", corr_table[[loci[[i]]]][2,])]<-(alignment_start[[loci[[i]]]]:((length(corr_table[[loci[[i]]]][2,])-length(corr_table[[loci[[i]]]][2,][grepl("InDel", corr_table[[loci[[i]]]][2,])]))))[!(alignment_start[[loci[[i]]]]:((length(corr_table[[loci[[i]]]][2,])-length(corr_table[[loci[[i]]]][2,][grepl("InDel", corr_table[[loci[[i]]]][2,])]))))==0]
-    }
-    
-    else{
-      corr_table[[loci[[i]]]][2,][!grepl("InDel", corr_table[[loci[[i]]]][2,])]<-(alignment_start[[loci[[i]]]]:((length(corr_table[[loci[[i]]]][2,])-length(corr_table[[loci[[i]]]][2,][grepl("InDel", corr_table[[loci[[i]]]][2,])]))+alignment_start[[loci[[i]]]]))[!(alignment_start[[loci[[i]]]]:((length(corr_table[[loci[[i]]]][2,])-length(corr_table[[loci[[i]]]][2,][grepl("InDel", corr_table[[loci[[i]]]][2,])]))+alignment_start[[loci[[i]]]]))==0]
-    }
-    
-    #renames columns in AA_segments
-    colnames(AA_segments[[loci[i]]]) <- c("locus","allele","trimmed_allele","allele_name", 1:ncol(corr_table[[loci[[i]]]]))
-    
-    #distributes  reference sequence from row 1
-    #into all other rows, if they contain a "-"
-    #amino acids with changes will not be impacted
-    for(k in 5:ncol(AA_segments[[loci[i]]])) {
-      AA_segments[[loci[i]]][,k][which(AA_segments[[loci[i]]][,k]=="-")] <- AA_segments[[loci[i]]][,k][1]}  
-    
+    AA_segments<-BLAASD(loci)
     
     #for loop for subsetting AA_segments by matching exon start and end cells from AA_atlas
     #column names of AA_segments, which are AA positions
@@ -338,13 +167,18 @@ variantAAextractor<-function(loci,genotypefiles){
     #only subtracted by 1, since we do not need to
     #account for there being no position zero in the alignment)
     if((loci[[i]]=="A") || (loci[[i]]=="B") || (loci[[i]]=="C")){
-      exonlist[[i]][[1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][,5:match(as.numeric(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]][[1]]-1), colnames(AA_segments[[loci[i]]]))])}
+      exonlist[[i]][[1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][,5:match(as.numeric(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]][[1]]), colnames(AA_segments[[loci[i]]]))])}
     
     if((loci[[i]]=="DRB1") || (loci[[i]]=="DQB1") || (loci[[i]]=="DPB1")){
       exonlist[[i]][[1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][,5:match(as.numeric(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]][[1]]), colnames(AA_segments[[loci[i]]]))])}
     
     #subsets last exon for loci 
-    exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][match(AA_atlas[[match(loci[[i]],names(AA_atlas))]][[2]][[length(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]])]]:names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])]), colnames(AA_segments[[loci[i]]]))])
+    if((grepl("InDel",names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])])))==TRUE){
+      range <- 1:ncol(AA_segments[[loci[[i]]]])
+      exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4],  AA_segments[[loci[[i]]]][,range[colnames(AA_segments[[loci[[i]]]]) %in% AA_atlas[[loci[[i]]]][[2]][[nrow(AA_atlas[[loci[[i]]]])]]]:range[colnames(AA_segments[[loci[[i]]]]) %in% colnames(AA_segments[[loci[[i]]]][ncol(AA_segments[[loci[[i]]]])])]])  
+    }
+    else{
+      exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][match(AA_atlas[[match(loci[[i]],names(AA_atlas))]][[2]][[length(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]])]]:names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])]), colnames(AA_segments[[loci[i]]]))])}
     
     #subsets N-1 exons 
     for(j in 1:(nrow(AA_atlas[[match(loci[i],names(AA_atlas))]])-1)){
@@ -369,7 +203,7 @@ variantAAextractor<-function(loci,genotypefiles){
     #reads in text file of of latest, full allele history -- chooses most recent allele release to set as HLA_alleles
     #LT
     HLA_alleles<-read.csv("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/Allelelist_history.txt", header=TRUE, stringsAsFactors = FALSE, skip=6,sep=",")[,c(1,2)]
-
+    
     
     #compiles a list of CWD alleles and inserts them into a new variable
     CWDalleles<-CWDverify()
@@ -385,18 +219,21 @@ variantAAextractor<-function(loci,genotypefiles){
       geno_exonlist[[loci[i]]][[d]]<-cbind.data.frame("CWD"=ifelse(geno_exonlist[[loci[i]]][[d]]$accessions %in% CWDalleles$Accession, "CWD", "NON-CWD"), geno_exonlist[[loci[i]]][[d]], stringsAsFactors=FALSE)
       
       
+      
       #subsets geno_exonlist to only containing CWD alleles via accession number
       #and stores it to a new variable, all_gdata
       #NOTE: all g_data will be a master copy of all variants of genotype data alleles
       if(any(geno_exonlist[[loci[i]]][[d]]$CWD=="CWD")){
         all_gdata[[loci[i]]][[d]]<-na.omit(geno_exonlist[[loci[i]]][[d]][geno_exonlist[[loci[i]]][[d]]$accessions%in%CWDalleles$Accession,])}
       
-      #compares whether all truncated alleles in all_gdata are in geno_alleles
-      #returns truncated alleles that are not CWD, but that are present in geno_alleles
-      nonCWDtrunc[[loci[i]]]<-cbind(geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele, geno_alleles[[loci[i]]])[which(cbind(geno_alleles[[loci[i]]], geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele)==FALSE)]
+    }
+    
+    #compares whether all truncated alleles in all_gdata are in geno_alleles
+    #returns truncated alleles that are not CWD, but that are present in geno_alleles
+    nonCWDtrunc[[loci[i]]]<-cbind(geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele, geno_alleles[[loci[i]]])[which(cbind(geno_alleles[[loci[i]]], geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele)==FALSE)]
+    
+    if (length(nonCWDtrunc[[loci[i]]]) != 0) { 
       
-      if (length(nonCWDtrunc[[loci[i]]]) != 0) { 
-        
       #obtains non-CWD genotype variants in the genotype dataset
       for(b in 1:length(nonCWDtrunc[[loci[i]]])){
         genotype_variants[[loci[i]]][[d]][[b]]<-subset(geno_exonlist[[loci[i]]][[d]], geno_exonlist[[loci[i]]][[d]]$trimmed_allele==nonCWDtrunc[[loci[i]]][[b]])
@@ -438,7 +275,6 @@ variantAAextractor<-function(loci,genotypefiles){
       if(length(columns[[loci[i]]][[d]])==1){
         all_gdata[[loci[i]]][[d]]<-rbind(all_gdata[[loci[i]]][[d]][ncol(all_gdata[[loci[i]]][[d]])==7], rbind(nonCWD_checked[[loci[i]]][[1]], nonCWD_checked[[loci[i]]][[2]]))}}
     
-    }
     
     #creates a new variable, position_parsed, with pre-defined elements based on
     #column names in AA_segments (i.e. position in the peptide sequence)
@@ -484,33 +320,22 @@ variantAAextractor<-function(loci,genotypefiles){
     #renames column names 
     colnames(mastertable[[loci[[i]]]])<-c("SampleID", "Disease", unlist(rep_variantAA[[loci[[i]]]]))
     
-
-    
     for(u in 1:length(gdata[loci[[i]]==colnames(gdata)])){
       for(s in 1:length(variantAApositions[[loci[[i]]]])){
         mastertable[[loci[[i]]]][names(variantAApositions[[loci[[i]]]][[s]][2]) == names(mastertable[[loci[[i]]]])][[u]]<-variantAApositions[[loci[[i]]]][[s]][,2][match(gdata[loci[[i]]==colnames(gdata)][[u]], variantAApositions[[loci[[i]]]][[s]][,1])]
       }
     }
-    #Fixes the alignment - output will be in true alignment instead of positional order.
-    for (x in 3:ncol(mastertable[[loci[[i]]]])) {
-      for (y in 1:(ncol(corr_table[[loci[[i]]]]))) {
-        if (corr_table[[loci[[i]]]][[1,y]] == colnames(mastertable[[loci[[i]]]][x])) {
-          colnames(mastertable[[loci[[i]]]])[x] <- corr_table[[loci[[i]]]][[2,y]]
-      }
-    }
   }
-}
   mastertable #Vinh's addition
 }
 
-
 ##Part 3 - Combination Analyzer##
 combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDLO_list, UMLO_list, variantAAtable, loop){
-
+  
   #specifies a default motif list if one is not provided 
   if((is.null(motif_list)==TRUE)&(counter==0)){
     motif_list<-c(0,2,3,4,5,6,7)
-  #  cat("BIGCAAT: A motif list has not been provided - BIGCAAT will run until maximal OR is reached. \n") ### SJM Currently no way to provide a motif list
+    #  cat("BIGCAAT: A motif list has not been provided - BIGCAAT will run until maximal OR is reached. \n") ### SJM Currently no way to provide a motif list
   }
   #cat("internal motif_list = ",motif_list,"\n",sep="")
   
@@ -547,7 +372,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(counter==1){
     for(i in 1:nrow(BOLO)){
       BOLO[i,8]<-gsub("-", "", as.numeric(BOLO[i,]$OR)-as.numeric(subset(subset(KDLO, KDLO[,1] %in% strsplit(BOLO[i,][[1]], ":")[[1]][[1]]), subset(KDLO, KDLO[,1] %in% strsplit(BOLO[i,][[1]], ":")[[1]][[1]])$Allele %in% strsplit(BOLO[i,][[2]], "~")[[1]][[1]])$OR))}
-      names(BOLO)[8]<-"OR.diff.A"
+    names(BOLO)[8]<-"OR.diff.A"
   }
   
   #ends function if BOLO is empty 
@@ -562,7 +387,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
       names(BOLO)[8]<-"OR.diff.A"
       BOLO[i,9]<-gsub("-", "", as.numeric(BOLO[i,]$OR)-as.numeric(subset(subset(KDLO_list[[1]], KDLO_list[[1]]$Locus %in% strsplit(BOLO[i,][[1]], ":")[[1]][[length(unlist(strsplit(BOLO[i,][[1]], ":")))]]), subset(KDLO_list[[1]], KDLO_list[[1]]$Locus %in% strsplit(BOLO[i,][[1]], ":")[[1]][[length(unlist(strsplit(BOLO[i,][[1]], ":")))]])$Allele %in% strsplit(BOLO[i,][[2]], "~")[[1]][[length(unlist(strsplit(BOLO[i,][[1]], ":")))]])$OR))
       names(BOLO)[9]<-"OR.diff.B"
-      }}
+    }}
   
   #subsets out NS values 
   KDLO<-subset(BOLO,BOLO[,7]=="*")
@@ -577,6 +402,8 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(loop==2){
     KDLO<-KDLO %>% filter(OR <1.0)}
   
+  if(nrow(KDLO)==1){
+    return(list(KDLO, BOLO, UMLO="none"))}
   
   #statement for returning BOLO if KDLO=0
   if((counter>0) & (nrow(KDLO)==0)){ 
@@ -587,7 +414,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(counter>1){
     
     #subsets out OR differences smaller than 0.1 
-  KDLO<-subset(KDLO, KDLO[,9]>0.1)}
+    KDLO<-subset(KDLO, KDLO[,9]>0.1)}
   KDLO<-subset(KDLO, KDLO[,8]>0.1)
   
   #statement for returning KDLO if KDLO=0
@@ -630,6 +457,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
     start1<-unique(unlist(strsplit(KDLO$Locus, ":")))
     combinames<-NULL}
   
+  
   if(counter>0){
     possible_combis<-sapply(unique(KDLO$Locus), function(x) NULL)
     
@@ -643,11 +471,15 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
     
     combinames<-unique(mixedsort(combinames))}
   
+  
+  
   ###subsets combinames by successive unassociated positions
   if(counter==1) {
     for(i in 1:length(unassociated_posi)) {
       combinames<-subset(combinames, (!grepl(paste("^", unassociated_posi[[i]], sep=""), combinames)) & (!grepl(paste(":", unassociated_posi[[i]], sep=""), combinames)))}
   }
+  
+  
   
   if(counter==2) {
     for(i in 1:length(unassociated_posi)) {
@@ -655,6 +487,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
     for(i in 1:length(UMLO_list[[counter]])){
       combinames<-subset(combinames, (!grepl(paste("^", UMLO_list[[counter]][[i]], sep=""), combinames)) & (!grepl(paste(":", UMLO_list[[counter]][[i]], sep=""), combinames)))}
   }
+  
   
   if (counter > 2) {
     for(i in 1:length(unassociated_posi)) {
@@ -664,6 +497,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
         combinames<-subset(combinames, (!grepl(paste("^", UMLO_list[[x]][[i]], sep=""), combinames)) & (!grepl(paste(":", UMLO_list[[x]][[i]], sep=""), combinames)))}
     }
   }
+  
   if(length(combinames)==0) {
     return(list(KDLO, BOLO, UMLO))
   }
@@ -704,76 +538,76 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
 runCombiAnalyzer <- function(loci, variantAAtable, loop) {
   #makes empty lists so results of each iteration may be stored 
   BOLO_list<-KDLO_list<-UMLO_list<-list()
-
+  
   #sets motif_list to NULL
   motif_list<-NULL
-
+  
   #sets myData, iteration0, to variantAAtable[[loci]]
   myData<-variantAAtable[[loci]]
-
+  
   #initiates recursion with stop=FALSE and begins the counter at 0
   stop<-FALSE
   counter=0
-
+  
   ###BEGIN RECURSION -- as long as stop==FALSE, combiAnalyzer will be run until the maximum OR
   #is reached, or the end of the motif_list is reached
   #the recursive program receives input from combiAnalyzer, where stop=TRUE once the maximum OR 
   #is reached, either because the BOLO is empty, the KDLO is empty, or no more combination names
   #can be made 
   while(stop==FALSE){
-  
+    
     #used to inform user what iteration is currently running
     # cat("BIGCAAT:", counter,ifelse(counter==1,"iteration has","iterations have"),"been run \n", sep=" ") #### SJM cleaning up messaging
     cat("Evaluating",ifelse(counter==0,"initial comparison to null hypothesis \n",paste(counter,"-mers \n",sep=""))) ### SJM more accurate messaging
     
     interim<-combiAnalyzer(loci, myData, BOLO ,KDLO, UMLO, counter, motif_list, KDLO_list, UMLO_list, variantAAtable, loop)
-  
+    
     #adds 1 to the counter with each iteration 
     counter=counter+1
-  
+    
     #saves all data to list variables made earlier
     myData<-interim$combidf
     KDLO<-KDLO_list[[counter]]<-interim$KDLO
     BOLO<-BOLO_list[[counter]]<-interim$BOLO
     UMLO<-UMLO_list[[counter]]<-interim$UMLO
-  
+    
     #cat("external motif_list = ",motif_list,"\n",sep="")
-  
+    
     if(is.null(nrow(KDLO))==TRUE){
       cat("Maximal significant OR values identified. End of analysis of the",loci,"locus.\n\n") ### SJM cosmetic & informative changes
       Results <- (list(KDLO = KDLO_list, BOLO = BOLO_list, UMLO = UMLO_list))
       return (Results)
     }
-  
+    
     if((is.null(nrow(KDLO))==FALSE) & (length(motif_list)!=counter)){
- ##    cat("BIGCAAT: Dataset is able to be further analyzed - moving on to next iteration.\n") ### SJM added break, and removed message
+      ##    cat("BIGCAAT: Dataset is able to be further analyzed - moving on to next iteration.\n") ### SJM added break, and removed message
     }
-  
+    
     if((is.null(nrow(KDLO))==FALSE) & length(motif_list)==counter){
       cat("BIGCAAT: WARNING: end of motif_list analysis, but further analysis is possible.\n") ### SJM added break
       stop=TRUE
       
     }
-  
+    
     if((is.null(nrow(KDLO))==TRUE) & length(motif_list)==counter){
       cat("BIGCAAT: End of motif_list analysis - maximal OR has been reached.\n") ### SJM added break
-      }
+    }
   }
 }
 
 #Combining everything into one function
 BIGCAAT <- function(loci, GenotypeFile) {
-
+  
   if (missing(loci)) { return(cat("Please specify a locus, or vector of loci to analyze.")) }
   
   if (missing(GenotypeFile)) { 
-     #Genotype_Data <- read.table(file.choose(), header = TRUE, sep = "\t", quote = "", na.strings = "****", colClasses = "character", check.names = FALSE)
+    #Genotype_Data <- read.table(file.choose(), header = TRUE, sep = "\t", quote = "", na.strings = "****", colClasses = "character", check.names = FALSE)
     GenotypeFile <- fileChoose("Please select a BIGDAWG-formatted genotype datset for analysis.")
   }  
-      cat("-------------------------------------------------------------------\n BIGCAAT: BIGDAWG Integrated Genotype Converted Amino Acid Testing\n-------------------------------------------------------------------\n") ### SJM Banner
-       #  else {
-    Genotype_Data <- read.table(GenotypeFile, header = TRUE, sep = "\t", quote = "", na.strings = "****", colClasses = "character", check.names = FALSE)
-#  }
+  cat("-------------------------------------------------------------------\n BIGCAAT: BIGDAWG Integrated Genotype Converted Amino Acid Testing\n-------------------------------------------------------------------\n") ### SJM Banner
+  #  else {
+  Genotype_Data <- read.table(GenotypeFile, header = TRUE, sep = "\t", quote = "", na.strings = "****", colClasses = "character", check.names = FALSE)
+  #  }
   
   AAData <- variantAAextractor(loci, Genotype_Data) ## SJM "DRB1" was hard coded
   #CombiData <- list() ### SJM incorporating locus names to CombiData
@@ -781,71 +615,149 @@ BIGCAAT <- function(loci, GenotypeFile) {
   names(CombiData) <- loci
   
   for(z in 1:length(CombiData)){
-  #specifications for predisposing and protective OR analysis added by LT
-  CombiData[[z]] <- sapply(c("Predisposing", "Protective"), function(x) NULL)
+    #specifications for predisposing and protective OR analysis added by LT
+    CombiData[[loci[[z]]]] <- sapply(c("Predisposing", "Protective"), function(x) NULL)}
   
-  for(loop in 1:length(CombiData[[z]])){
+  for(loop in 1:length(CombiData[[loci[[z]]]])){
     if(loop==1){cat("Predisposing OR analysis", sep="\n")}
     if(loop==2){cat("Protective OR analysis", sep="\n")}
-  
-  for (p in 1:length(loci)) {
-    cat("Analyzing the",loci[p],"locus\n",sep=" ") ### SJM added notification
-    CombiData[[loci[p]]][[loop]] <- runCombiAnalyzer(loci[p], AAData, loop) #LT added loop as parameter
+    
+    for (p in 1:length(loci)) {
+      cat("Analyzing the",loci[p],"locus\n",sep=" ") ### SJM added notification
+      CombiData[[loci[p]]][[loop]] <- runCombiAnalyzer(loci[p], AAData, loop) #LT added loop as parameter
+    }
   }
-  }
-}
+  #}
   CombiData
 }
 
-#BIDS (BIGCAAT Data Summarizer)
-##summarizes BIGCAAT data by showing which alleles significant alleles belong to
-#under development
-BIDS<-function(locus, dataset){
+#BIGDAWG Data Summarizer 
+BIDS<-function(loci, dataset){
   
-MS_Data <- read.table(dataset ,header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
+  MS_Data <- read.table(dataset, header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
   
-#run BIGCAAT
-BIGCAAT_results<-BIGCAAT(locus, dataset)
-
-#extract last iteration of BIGCAAT results -- filter to only significant values and respective OR values for each summary
-predisposing_summary<-BIGCAAT_results[[locus]]$Predisposing$KDLO[[length(BIGCAAT_results[[locus]]$Predisposing$KDLO)]][order(BIGCAAT_results[[locus]]$Predisposing$KDLO[[length(BIGCAAT_results[[locus]]$Predisposing$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR>1)
-protective_summary<-BIGCAAT_results[[locus]]$Protective$KDLO[[length(BIGCAAT_results[[locus]]$Protective$KDLO)]][order(BIGCAAT_results[[locus]]$Protective$KDLO[[length(BIGCAAT_results[[locus]]$Protective$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR<1)
-
-#find locus specific alleles in MS data 
-ms_alleles <- sort(paste(locus,unlist(unique(c(MS_Data[colnames(MS_Data)==locus][[1]],MS_Data[colnames(MS_Data)==locus][[2]])))[unlist(unique(c(MS_Data[colnames(MS_Data)==locus][[1]],MS_Data[colnames(MS_Data)==locus][[2]])))!=""],sep="*"))
-
-#build motif, find alleles that contain the motif, and find which of those alleles are in the MS dataset
-#input motif and alleles with the motif from MS dataset into appropriate column
-
-#predisposing summary
-for(i in 1:nrow(predisposing_summary)) {
-  motif<-paste(locus, sep="*", paste0(paste(str_split(predisposing_summary$Locus, ":")[[i]], str_split(predisposing_summary$Allele, "~")[[i]], sep=""), collapse="~"))
-  alleles <- findMotif(motif)$trimmed_allele
-  ms_allele <- paste(unique(alleles[alleles %in% ms_alleles]),collapse=",")
+  temp<-ms_alleles<-predisposing_summary<-protective_summary<-preMotif_exons<-proMotif_exons<-ms_alleles<-sapply(loci, function(x) NULL)
   
-  predisposing_summary$motif[i] <- motif
-  predisposing_summary$alleles[i] <- ms_allele
+  #run BIGCAAT
+  BIGCAAT_results<-BIGCAAT(loci, dataset)
+  
+  for(j in 1:length(loci)){
+    
+    #find locus specific alleles in MS data 
+    ms_alleles[[j]] <- sort(paste(loci[[j]],unlist(unique(c(MS_Data[colnames(MS_Data)==loci[[j]]][[1]],MS_Data[colnames(MS_Data)==loci[[j]]][[2]])))[unlist(unique(c(MS_Data[colnames(MS_Data)==loci[[j]]][[1]],MS_Data[colnames(MS_Data)==loci[[j]]][[2]])))!=""],sep="*"))
+    
+    if(length(BIGCAAT_results[[loci[[j]]]]$Predisposing$KDLO)==0){
+      BIGCAAT_results[[loci[[j]]]]$Predisposing<-"No statistical data available"}
+    
+    else{
+      #extract last iteration of BIGCAAT results -- filter to only significant values and respective OR values for each summary
+      predisposing_summary[[loci[[j]]]]<-BIGCAAT_results[[loci[[j]]]]$Predisposing$KDLO[[length(BIGCAAT_results[[loci[[j]]]]$Predisposing$KDLO)]][order(BIGCAAT_results[[loci[[j]]]]$Predisposing$KDLO[[length(BIGCAAT_results[[loci[[j]]]]$Predisposing$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR>1)
+      
+      preMotif_exons[[loci[[j]]]]<-data.frame("position"=as.numeric(unique(unlist(strsplit(predisposing_summary[[loci[[j]]]]$Locus, ":"), recursive=T)))[order(as.numeric(unique(unlist(strsplit(predisposing_summary[[loci[[j]]]]$Locus, ":"), recursive=T))))], "exon"=matrix("", nrow=length(as.numeric(unique(unlist(strsplit(predisposing_summary[[loci[[j]]]]$Locus, ":"), recursive=T)))[order(as.numeric(unique(unlist(strsplit(predisposing_summary[[loci[[j]]]]$Locus, ":"), recursive=T))))]), ncol=1), stringsAsFactors = F)
+      
+      for(d in 1:nrow(preMotif_exons[[loci[[j]]]])){
+        
+        if((preMotif_exons[[loci[[j]]]]$position[[d]] <= AA_atlas[[loci[[j]]]]$Boundary[[1]])==TRUE){
+          preMotif_exons[[loci[[j]]]][d,]$exon<- "exon 1"}
+        
+        if((preMotif_exons[[loci[[j]]]]$position[[d]] >= AA_atlas[[loci[[j]]]]$Boundary[[length(AA_atlas[[loci[[j]]]]$Boundary)]])==TRUE){
+          preMotif_exons[[loci[[j]]]][d,]$exon<- paste("exon", length(AA_atlas[[loci[[j]]]]$Boundary)+1)}
+        
+        if((preMotif_exons[[loci[[j]]]]$position[[d]]) %in% AA_atlas[[loci[[j]]]]$Boundary){
+          preMotif_exons[[loci[[j]]]][d,]$exon<-gsub("_", " ", strsplit(AA_atlas[[loci[[j]]]]$Exon[match(preMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary)], ":")[[1]][[1]])
+        }
+        
+        if((preMotif_exons[[loci[[j]]]]$position[[d]] %in% AA_atlas[[loci[[j]]]]$Boundary)==FALSE){
+          for(g in 1:length(AA_atlas[[loci[[j]]]])){
+            if(between(preMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary[[g]], AA_atlas[[loci[[j]]]]$Boundary[[g+1]])==TRUE){
+              preMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)  
+            }
+          }
+        }
+      }
+      BIGCAAT_results[[loci[[j]]]]$Predisposing[["Predisp Motif Exon Summary"]]<-preMotif_exons[[loci[[j]]]]
+      
+      #predisposing summary
+      for(i in 1:nrow(predisposing_summary[[loci[[j]]]])) {
+        motif <-paste(loci[[j]], sep="*", paste0(paste(str_split(predisposing_summary[[loci[[j]]]]$Locus, ":")[[i]], str_split(predisposing_summary[[loci[[j]]]]$Allele, "~")[[i]], sep=""), collapse="~"))
+        alleles <- findMotif(motif)$trimmed_allele
+        ms_allele <- paste(unique(alleles[alleles %in% ms_alleles[[loci[[j]]]]]),collapse=",")
+        
+        predisposing_summary[[loci[[j]]]]$motif[i] <- motif
+        predisposing_summary[[loci[[j]]]]$alleles[i] <- ms_allele
+      }
+      BIGCAAT_results[[loci[[j]]]]$Predisposing[["Predisposing Summary"]]<-predisposing_summary[[loci[[j]]]]
+      
+      if(length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
+        for(e in 1:length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
+          temp[[j]][[e]]<-cbind.data.frame(AAalleles="", motif="", MSalleles="", (unique(predisposing_summary[[loci[[j]]]]%>% filter(p.value==unique(predisposing_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
+          
+          for(i in 1:3){
+            temp[[loci[[j]]]][[e]][[i]]<-paste((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]], collapse=",")
+          }}
+        
+        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-temp[[loci[[j]]]]}
+      
+      else{
+        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-"Statistical repetition was not observed"}
+    }
+    
+    if(length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)==0){
+      BIGCAAT_results[[loci[[j]]]]$Protective<-"No statistical data available"}
+    
+    else{
+      protective_summary[[loci[[j]]]]<-BIGCAAT_results[[loci[[j]]]]$Protective$KDLO[[length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)]][order(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO[[length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR<1)
+      proMotif_exons[[loci[[j]]]]<-data.frame("position"=  as.numeric(unique(unlist(strsplit(protective_summary[[loci[[j]]]]$Locus, ":"), recursive=T)))[order(as.numeric(unique(unlist(strsplit(protective_summary[[loci[[j]]]]$Locus, ":"), recursive=T))))], "exon"=matrix("", nrow=length(as.numeric(unique(unlist(strsplit(protective_summary[[loci[[j]]]]$Locus, ":"), recursive=T)))[order(as.numeric(unique(unlist(strsplit(protective_summary[[loci[[j]]]]$Locus, ":"), recursive=T))))]), ncol=1), stringsAsFactors = F)
+      
+      
+      for(d in 1:nrow(proMotif_exons[[loci[[j]]]])){
+        
+        if((proMotif_exons[[loci[[j]]]]$position[[d]] <= AA_atlas[[loci[[j]]]]$Boundary[[1]])==TRUE){
+          proMotif_exons[[loci[[j]]]][d,]$exon<- "exon 1"}
+        
+        if((proMotif_exons[[loci[[j]]]]$position[[d]] >= AA_atlas[[loci[[j]]]]$Boundary[[length(AA_atlas[[loci[[j]]]]$Boundary)]])==TRUE){
+          proMotif_exons[[loci[[j]]]][d,]$exon<- paste("exon", length(AA_atlas[[loci[[j]]]]$Boundary)+1)}
+        
+        if((proMotif_exons[[loci[[j]]]]$position[[d]]) %in% AA_atlas[[loci[[j]]]]$Boundary){
+          proMotif_exons[[loci[[j]]]][d,]$exon<-gsub("_", " ", strsplit(AA_atlas[[loci[[j]]]]$Exon[match(proMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary)], ":")[[1]][[1]])
+        }
+        
+        if((proMotif_exons[[loci[[j]]]]$position[[d]] %in% AA_atlas[[loci[[j]]]]$Boundary)==FALSE){
+          for(g in 1:length(AA_atlas[[loci[[j]]]])){
+            if(between(proMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary[[g]], AA_atlas[[loci[[j]]]]$Boundary[[g+1]])==TRUE){
+              proMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)  
+            }
+          }
+        }
+      }
+      BIGCAAT_results[[loci[[j]]]]$Protective[["Protective Motif Exon Summary"]]<-proMotif_exons[[loci[[j]]]]
+      
+      #protective summary
+      for(i in 1:nrow(protective_summary[[loci[[j]]]])) {
+        motif<-paste(loci[[j]], sep="*", paste0(paste(str_split(protective_summary[[loci[[j]]]]$Locus, ":")[[i]], str_split(protective_summary[[loci[[j]]]]$Allele, "~")[[i]], sep=""), collapse="~"))
+        alleles <- findMotif(motif)$trimmed_allele
+        ms_allele <- paste(unique(alleles[alleles %in% ms_alleles[[loci[[j]]]]]),collapse=",")
+        
+        protective_summary[[loci[[j]]]]$motif[i] <- motif
+        protective_summary[[loci[[j]]]]$alleles[i] <- ms_allele
+      }
+      
+      BIGCAAT_results[[loci[[j]]]]$Protective[["Protective Summary"]]<-protective_summary[[loci[[j]]]]
+      
+      if(length(unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
+        for(e in 1:length(unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
+          temp[[loci[[j]]]][[e]]<-cbind.data.frame(AAalleles="", motif="", MSalleles="", (unique(protective_summary[[loci[[j]]]] %>% filter(p.value==unique(protective_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
+          
+          for(i in 1:3){
+            temp[[loci[[j]]]][[e]][[i]]<-paste((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]], collapse=",")
+          }}
+        BIGCAAT_results[[loci[[j]]]]$Protective$final<-temp[[loci[[j]]]]
+      }
+      else{
+        BIGCAAT_results[[loci[[j]]]]$Protective$final<-"Statistical repetition was not observed"}
+      
+    }
+  }
+  return(BIGCAAT_results)
 }
-
-#protective summary
-for(i in 1:nrow(protective_summary)) {
-  motif<-paste(locus, sep="*", paste0(paste(str_split(protective_summary$Locus, ":")[[i]], str_split(protective_summary$Allele, "~")[[i]], sep=""), collapse="~"))
-  alleles <- findMotif(motif)$trimmed_allele
-  ms_allele <- paste(unique(alleles[alleles %in% ms_alleles]),collapse=",")
-  
-  protective_summary$motif[i] <- motif
-  protective_summary$alleles[i] <- ms_allele
-}
-
-BIGCAAT_results[[locus]]$Predisposing[["Predisposing Summary"]]<-predisposing_summary
-BIGCAAT_results[[locus]]$Protective[["Protective Summary"]]<-protective_summary
-return(BIGCAAT_results)
-}
-
-
-#example usage
-x<-BIDS("DRB1", "../ltmasterscoding/MS_EUR.txt")
-
-
-
-
+thing<-BIDS("DQB1", "../ltmasterscoding/MS_EUR.txt")
