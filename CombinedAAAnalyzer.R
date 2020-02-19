@@ -12,7 +12,7 @@ require(gtools)
 require(dplyr) ## LT
 require(SSHAARP)
 
-load("AA_atlas.rda")
+AA_atlas<-SSHAARP::AA_atlas
 
 ##Part 1 - Datafile Processing##
 Datafile_Processing <- function(locus, Genotype_Data) {
@@ -130,10 +130,10 @@ dupdiff <- function(x,y) x[-match(
 variantAAextractor<-function(loci,genotypefiles){
   
   #reads in genotype data  
-  gdata <- read.table("../ltmasterscoding/MS_EUR.txt", sep="\t", header=T, check.names = F, stringsAsFactors = F)
+  #gdata <- read.table("../ltmasterscoding/MS_EUR.txt", sep="\t", header=T, check.names = F, stringsAsFactors = F)
   
-  #gdata <- genotypefiles
-  #gdata <- Datafile_Processing(loci, gdata) #Vinh's function
+  gdata <- genotypefiles
+  gdata <- Datafile_Processing(loci, gdata) #Vinh's function
   
   #sets blank cells to NA 
   #if cells do not contain NA, locus names are pasted to the allele in the MS_file
@@ -144,7 +144,7 @@ variantAAextractor<-function(loci,genotypefiles){
   
   #removes rows with only ALL NA data 
   gdata<-gdata[!(rowSums(is.na(gdata))==ncol(gdata)-2),]
-  
+
   #empty variables for exon_extractor function   
   AA_segments<-variantAApositions<-geno_exonlist<-missing_geno_output<-missing_geno<-rep_variantAA<-mastertablecols<-mastertable<-position_parsed<-nonCWD_checked<-nonCWDtrunc<-singleAA_exon<-singleAA_alleles<-pastedAAseq<-columns<-all_gdata<-genotype_variants<-geno_alleles<-AA_segments<-AA_aligned <-refexon<-pepsplit<-alignment<-exonlist<- sapply(loci, function(x) NULL)
   
@@ -173,10 +173,13 @@ variantAAextractor<-function(loci,genotypefiles){
       exonlist[[i]][[1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][,5:match(as.numeric(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]][[1]]), colnames(AA_segments[[loci[i]]]))])}
     
     #subsets last exon for loci 
-    if((grepl("InDel",names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])])))==TRUE){
+    if((grepl("INDEL",names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])])))==TRUE){
       range <- 1:ncol(AA_segments[[loci[[i]]]])
       exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4],  AA_segments[[loci[[i]]]][,range[colnames(AA_segments[[loci[[i]]]]) %in% AA_atlas[[loci[[i]]]][[2]][[nrow(AA_atlas[[loci[[i]]]])]]]:range[colnames(AA_segments[[loci[[i]]]]) %in% colnames(AA_segments[[loci[[i]]]][ncol(AA_segments[[loci[[i]]]])])]])  
     }
+
+  
+  
     else{
       exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][match(AA_atlas[[match(loci[[i]],names(AA_atlas))]][[2]][[length(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]])]]:names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])]), colnames(AA_segments[[loci[i]]]))])}
     
@@ -226,7 +229,6 @@ variantAAextractor<-function(loci,genotypefiles){
       if(any(geno_exonlist[[loci[i]]][[d]]$CWD=="CWD")){
         all_gdata[[loci[i]]][[d]]<-na.omit(geno_exonlist[[loci[i]]][[d]][geno_exonlist[[loci[i]]][[d]]$accessions%in%CWDalleles$Accession,])}
       
-    }
     
     #compares whether all truncated alleles in all_gdata are in geno_alleles
     #returns truncated alleles that are not CWD, but that are present in geno_alleles
@@ -275,7 +277,7 @@ variantAAextractor<-function(loci,genotypefiles){
       if(length(columns[[loci[i]]][[d]])==1){
         all_gdata[[loci[i]]][[d]]<-rbind(all_gdata[[loci[i]]][[d]][ncol(all_gdata[[loci[i]]][[d]])==7], rbind(nonCWD_checked[[loci[i]]][[1]], nonCWD_checked[[loci[i]]][[2]]))}}
     
-    
+    }
     #creates a new variable, position_parsed, with pre-defined elements based on
     #column names in AA_segments (i.e. position in the peptide sequence)
     position_parsed[[loci[i]]]<-sapply(colnames(AA_segments[[loci[i]]][,5:ncol(AA_segments[[loci[i]]])]), function(x) NULL)
@@ -288,7 +290,7 @@ variantAAextractor<-function(loci,genotypefiles){
         position_parsed[[loci[i]]][match(colnames(all_gdata[[loci[i]]][[a]][7:ncol(all_gdata[[loci[i]]][[a]])]), names(position_parsed[[loci[i]]]))][[b]]<-unique(subset(all_gdata[[loci[i]]][[a]][c(5,b+6)], (all_gdata[[loci[i]]][[a]][b+6]!=all_gdata[[loci[i]]][[a]][,b+6][1]) & (all_gdata[[loci[i]]][[a]][b+6] != "*") & (all_gdata[[loci[i]]][[a]][b+6] != "NA")))}}
     
     #removes invariant positions (i.e elements with no rows )
-    #inDels will be filtered out via a is.null application
+    #INDELs will be filtered out via a is.null application
     position_parsed[[loci[i]]]<-position_parsed[[loci[i]]][sapply(position_parsed[[loci[[i]]]][which(lapply(position_parsed[[loci[[i]]]], is.null)==FALSE)], nrow)>0]
     
     #further subsets position_parsed to only variant positions with polymorphic amino acids 
@@ -630,6 +632,14 @@ BIGCAAT <- function(loci, GenotypeFile) {
   #}
   CombiData
 }
+
+
+save(B, file="Bresults.rda")
+
+
+
+B<-BIGCAAT("B", "../ltmasterscoding/MS_EUR.txt")
+
 
 #BIGDAWG Data Summarizer 
 BIDS<-function(loci, dataset){
