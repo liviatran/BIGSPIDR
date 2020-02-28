@@ -1,5 +1,5 @@
 ### BIGCAAT: BIGDAWG Integrated Genotype Converted Amino Acid Testing
-### Version 0.3.5
+### Version 0.3.6
 ### Authors: Liva Tran, Vinh Luu, Steven J. Mack
 
 ##Combines Datafile Procession, AA extraction, and combination analyzer into one function. Changes made for redundancy.
@@ -18,16 +18,16 @@ AA_atlas<-SSHAARP::AA_atlas
 Datafile_Processing <- function(locus, Genotype_Data) {
   #Takes every other column and the one after - pairs of 2
   Final_Data <- Genotype_Data[,1:2]
-  colnames(Final_Data) <- colnames(Genotype_Data)[1:2] 
+  colnames(Final_Data) <- colnames(Genotype_Data)[1:2]
   #Takes every column pair and runs it though the check function -> Gives a table of the data where the all the alleles are truncated to 2 fields and any 1 field alleles are replaced by NA
   for (x in seq(3,length(Genotype_Data),2)) {
     if (colnames(Genotype_Data[x]) %in% locus) {
       Allele_Columns <- Genotype_Data[,x:(x+1)] ## not a list of lists
-      #  print(paste("Column pairs:", x,(x+1), sep = " ")) ### SJM silencing unnessary messaging 
+      #  print(paste("Column pairs:", x,(x+1), sep = " ")) ### SJM silencing unnessary messaging
       colnames(Allele_Columns) <- colnames(Genotype_Data)[x:(x+1)]
       Final_Data <- cbind(Final_Data, Dataset_Allele_Check_V2(Allele_Columns))
     }
-  } 
+  }
   Final_Data
 }
 
@@ -50,7 +50,7 @@ Dataset_Allele_Check_V2 <- function(Alleles) {
   #Calculates percentage of the data that is 1 field, outputs an integer value denoting how many 1 field alleles were in the data and outputs a percentage.
   percentage <- (count / (nrow(Alleles) * 2))
   # print(paste("The number of single field Alleles is:", count, sep = " "))  ### SJM silencing unnecessary messages
-  # print(paste("The percentage of single field Alleles in this column pair is:", percentage, sep = " ")) ### SJM as above 
+  # print(paste("The percentage of single field Alleles in this column pair is:", percentage, sep = " ")) ### SJM as above
   
   #Checks if the percentage of single field alleles is below a certain threshold. This is currently not changable by the user but can be implemented.
   if (percentage > .05) {
@@ -60,6 +60,11 @@ Dataset_Allele_Check_V2 <- function(Alleles) {
   }
   Final_Alleles
 }
+
+fileChoose <- function(text,suspend=0.02) { ## Display a message on the Console when file.choose() is called.
+  message(text)
+  Sys.sleep(suspend) # This is a kludgy way to get file.choose() to execute after a message is displayed.
+  file.choose()}
 
 ##Part 2 - Amino Acid Extraction##
 countSpaces <- function(x){
@@ -103,13 +108,13 @@ CWDverify <- function(){
   deletedHLA$version <- deletedHLA$version[,1:3] }
   # Store the pertinent accession numbers in the data element
   deletedHLA$data$origAccession <- deletedHLA$version$AlleleID[match(paste(deletedHLA$data$Locus,deletedHLA$data$AlleleName,sep=""),deletedHLA$version$Allele)]
-  # Temporarily store the allelelist.txt file in $version 
+  # Temporarily store the allelelist.txt file in $version
   deletedHLA$version <- fread("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/Allelelist.txt",skip=6, stringsAsFactors = FALSE,sep = ",", header=TRUE,showProgress = FALSE)
   deletedHLA$data$newAccession <- deletedHLA$version$AlleleID[match(paste(deletedHLA$data$Locus,deletedHLA$data$NewName,sep=""),deletedHLA$version$Allele)]
   # overwrite the Deleted_alelles.txt files with the version information
   deletedHLA$version <- cbind(fread("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/wmda/hla_nom.txt",stringsAsFactors = FALSE,nrows = 5,sep="?",header=TRUE,showProgress = FALSE),fread("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/Deleted_alleles.txt",stringsAsFactors = FALSE,nrows = 5,sep="?",header=TRUE,showProgress = FALSE), fread("https://raw.githubusercontent.com/ANHIG/IMGTHLA/Latest/Allelelist.txt",nrows=5, stringsAsFactors = FALSE,sep = "?", header=TRUE,showProgress = FALSE))
   
-  ## Match accession numbers in CWD to the Accession numbers in the deleted alleles. 
+  ## Match accession numbers in CWD to the Accession numbers in the deleted alleles.
   changeCWD <- match(CWD$data$`IMGT/HLA Accession Number`,deletedHLA$data$origAccession)
   # Create full allele names for the new names
   deletedHLA$data$NewName <- paste(deletedHLA$data$Locus,deletedHLA$data$NewName,sep="")
@@ -127,25 +132,42 @@ dupdiff <- function(x,y) x[-match(
   nomatch=0
 )]
 
-variantAAextractor<-function(loci,genotypefiles){
+
+variantAAextractor<-function(loci,dataset){
   
-  #reads in genotype data  
-  #gdata <- read.table("../ltmasterscoding/MS_EUR.txt", sep="\t", header=T, check.names = F, stringsAsFactors = F)
+  #reads in genotype data
+  #gdata <- read.table(dataset, na.strings=c("", NA), sep="\t", header=T, check.names = F, stringsAsFactors = F)
   
-  gdata <- genotypefiles
+  ##temp mods for software testing 
+  #gdata<-gdata %>% group_by(Disease) %>% group_split()
+  
+  #thing<-gdata[[1]][1:50,]
+  #thing2<-gdata[[2]][1:50,]
+  
+  #gdata<-data.frame(rbind(thing, thing2), stringsAsFactors = F, check.names=F)
+  
+  #gdata[c(1:10),5]<-"04:01"
+  #gdata[c(51:61),6]<-"17:01"
+  
+  
+  gdata <- dataset
   gdata <- Datafile_Processing(loci, gdata) #Vinh's function
   
-  #sets blank cells to NA 
-  #if cells do not contain NA, locus names are pasted to the allele in the MS_file
+  #if the locus entered is not found, the number of columns will be 2
+  if(ncol(gdata)==2){
+    return("The locus you have entered is not valid.")
+  }
   
+  #sets blank cells to NA
+  #if cells do not contain NA, locus names are pasted to the allele in the dataset file
   for (i in 3:ncol(gdata)){
     #  gdata[gdata==""]<-NA
     gdata[[i]]<-ifelse(is.na(gdata[[i]])==FALSE, paste(colnames(gdata[i]),gdata[,i],sep="*"), NA)}
   
-  #removes rows with only ALL NA data 
+  #removes rows with only ALL NA data
   gdata<-gdata[!(rowSums(is.na(gdata))==ncol(gdata)-2),]
-
-  #empty variables for exon_extractor function   
+  
+  #empty variables for variantAAextractor function
   AA_segments<-variantAApositions<-geno_exonlist<-missing_geno_output<-missing_geno<-rep_variantAA<-mastertablecols<-mastertable<-position_parsed<-nonCWD_checked<-nonCWDtrunc<-singleAA_exon<-singleAA_alleles<-pastedAAseq<-columns<-all_gdata<-genotype_variants<-geno_alleles<-AA_segments<-AA_aligned <-refexon<-pepsplit<-alignment<-exonlist<- sapply(loci, function(x) NULL)
   
   for(i in 1:length(loci)){
@@ -177,9 +199,6 @@ variantAAextractor<-function(loci,genotypefiles){
       range <- 1:ncol(AA_segments[[loci[[i]]]])
       exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4],  AA_segments[[loci[[i]]]][,range[colnames(AA_segments[[loci[[i]]]]) %in% AA_atlas[[loci[[i]]]][[2]][[nrow(AA_atlas[[loci[[i]]]])]]]:range[colnames(AA_segments[[loci[[i]]]]) %in% colnames(AA_segments[[loci[[i]]]][ncol(AA_segments[[loci[[i]]]])])]])  
     }
-
-  
-  
     else{
       exonlist[[loci[i]]][[nrow(AA_atlas[[match(loci[[i]],names(AA_atlas))]])+1]]<-cbind(AA_segments[[loci[i]]][,1:4], AA_segments[[loci[i]]][match(AA_atlas[[match(loci[[i]],names(AA_atlas))]][[2]][[length(AA_atlas[match(loci[[i]],names(AA_atlas))][[loci[i]]][[2]])]]:names(AA_segments[[loci[i]]][ncol(AA_segments[[loci[i]]])]), colnames(AA_segments[[loci[i]]]))])}
     
@@ -197,8 +216,9 @@ variantAAextractor<-function(loci,genotypefiles){
         geno_alleles[[loci[i]]][[e]]<-exonlist[[loci[i]]][[d]][,3][which(exonlist[[loci[i]]][[d]][,3] %in% gdata[which(colnames(gdata)%in%loci[[i]]==TRUE)][,e]==TRUE)]
       }}
     
-    #merges both sets of unique alleles found in exonlist and gets rid of duplicates 
+    #merges both sets of unique alleles found in exonlist and gets rid of duplicates
     geno_alleles[[loci[i]]]<-unique(append(geno_alleles[[loci[i]]][[1]], geno_alleles[[loci[i]]][[2]]))
+    
     
     #creates a variable geno_exonlist, with the number of elements equal to how many exons there are for an allele
     geno_exonlist[[loci[i]]]<-sapply(exonlist[[loci[i]]], function(x) NULL)
@@ -211,7 +231,7 @@ variantAAextractor<-function(loci,genotypefiles){
     #compiles a list of CWD alleles and inserts them into a new variable
     CWDalleles<-CWDverify()
     
-    #makes a list of lists based on the number of exons for a given locus 
+    #makes a list of lists based on the number of exons for a given locus
     nonCWD_checked[[loci[[i]]]]<-singleAA_exon[[loci[[i]]]]<-singleAA_alleles[[loci[[i]]]]<-pastedAAseq[[loci[[i]]]]<-columns[[loci[[i]]]]<-all_gdata[[loci[[i]]]]<-nonCWDtrunc[[loci[[i]]]]<-genotype_variants[[loci[[i]]]]<-sapply(exonlist[[loci[[i]]]], function(x) NULL)
     
     #subsets exonlist alleles to those found in genotype data and inserts them into a new list
@@ -222,49 +242,48 @@ variantAAextractor<-function(loci,genotypefiles){
       geno_exonlist[[loci[i]]][[d]]<-cbind.data.frame("CWD"=ifelse(geno_exonlist[[loci[i]]][[d]]$accessions %in% CWDalleles$Accession, "CWD", "NON-CWD"), geno_exonlist[[loci[i]]][[d]], stringsAsFactors=FALSE)
       
       
-      
       #subsets geno_exonlist to only containing CWD alleles via accession number
       #and stores it to a new variable, all_gdata
       #NOTE: all g_data will be a master copy of all variants of genotype data alleles
       if(any(geno_exonlist[[loci[i]]][[d]]$CWD=="CWD")){
         all_gdata[[loci[i]]][[d]]<-na.omit(geno_exonlist[[loci[i]]][[d]][geno_exonlist[[loci[i]]][[d]]$accessions%in%CWDalleles$Accession,])}
       
-    
-    #compares whether all truncated alleles in all_gdata are in geno_alleles
-    #returns truncated alleles that are not CWD, but that are present in geno_alleles
-    nonCWDtrunc[[loci[i]]]<-cbind(geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele, geno_alleles[[loci[i]]])[which(cbind(geno_alleles[[loci[i]]], geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele)==FALSE)]
-    
-    if (length(nonCWDtrunc[[loci[i]]]) != 0) { 
       
-      #obtains non-CWD genotype variants in the genotype dataset
-      for(b in 1:length(nonCWDtrunc[[loci[i]]])){
-        genotype_variants[[loci[i]]][[d]][[b]]<-subset(geno_exonlist[[loci[i]]][[d]], geno_exonlist[[loci[i]]][[d]]$trimmed_allele==nonCWDtrunc[[loci[i]]][[b]])
+      #compares whether all truncated alleles in all_gdata are in geno_alleles
+      #returns truncated alleles that are not CWD, but that are present in geno_alleles
+      nonCWDtrunc[[loci[i]]]<-cbind(geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele, geno_alleles[[loci[i]]])[which(cbind(geno_alleles[[loci[i]]], geno_alleles[[loci[i]]]%in%all_gdata[[loci[i]]][[d]]$trimmed_allele)==FALSE)]
+      
+      if (length(nonCWDtrunc[[loci[i]]]) != 0) {
         
-        #if the non-CWD allele only has one variant, bind it to all_gdata
-        if(nrow(genotype_variants[[loci[i]]][[d]][[b]])==1){all_gdata[[loci[[i]]]][[d]]<-rbind(all_gdata[[loci[[i]]]][[d]],genotype_variants[[loci[[i]]]][[d]][[b]])}
+        #obtains non-CWD genotype variants in the genotype dataset
+        for(b in 1:length(nonCWDtrunc[[loci[i]]])){
+          genotype_variants[[loci[i]]][[d]][[b]]<-subset(geno_exonlist[[loci[i]]][[d]], geno_exonlist[[loci[i]]][[d]]$trimmed_allele==nonCWDtrunc[[loci[i]]][[b]])
+          
+          #if the non-CWD allele only has one variant, bind it to all_gdata
+          if(nrow(genotype_variants[[loci[i]]][[d]][[b]])==1){all_gdata[[loci[[i]]]][[d]]<-rbind(all_gdata[[loci[[i]]]][[d]],genotype_variants[[loci[[i]]]][[d]][[b]])}
+          
+          #if the non-CWD allele has more than one variant, extract number of amino acid columns
+          #present for a given exon
+          if(nrow(genotype_variants[[loci[i]]][[d]][[b]])>1){
+            columns[[loci[i]]][[d]]<-7:length(genotype_variants[[loci[i]]][[d]][[b]])
+            
+            #if an exon for a non-CWD allele has more than one amino acid column, paste all the columns together to obtain
+            #the amino acid sequence which is stored in pastedAAseq
+            #pastedAAseq is evaluated to find which allele variant has the most complete sequence by counting the number of
+            #character, omitting * (notation for unknown amino acid)
+            #the allele with the most compelte sequence is bound to all_gdata
+            if(length(columns[[loci[i]]][[d]])>1){
+              pastedAAseq[[loci[i]]][[d]]<-apply(genotype_variants[[loci[i]]][[d]][[b]][ , columns[[loci[i]]][[d]]] , 1 , paste , collapse = "" )
+              all_gdata[[loci[i]]][[d]]<-rbind(all_gdata[[loci[i]]][[d]], genotype_variants[[loci[i]]][[d]][[b]][names(pastedAAseq[[loci[i]]][[d]][which.max(nchar(gsub("[*^]","",pastedAAseq[[loci[i]]][[d]])))]),])}
+            
+            
+            #if an exon for a non-CWD allele has one amino acid column (i.e. exon 8 for HLA-A), store it into a separate
+            #variable, singleAA_alleles
+            if(length(columns[[loci[i]]][[d]])==1){
+              singleAA_exon[[loci[i]]][[b]]<-genotype_variants[[loci[i]]][[d]][[b]][ncol(genotype_variants[[loci[i]]][[d]][[b]])==7]
+              singleAA_alleles[[loci[i]]]<-singleAA_exon[[loci[i]]][lapply(singleAA_exon[[loci[i]]], length)>0]}}}
         
-        #if the non-CWD allele has more than one variant, extract number of amino acid columns
-        #present for a given exon 
-        if(nrow(genotype_variants[[loci[i]]][[d]][[b]])>1){
-          columns[[loci[i]]][[d]]<-7:length(genotype_variants[[loci[i]]][[d]][[b]])
-          
-          #if an exon for a non-CWD allele has more than one amino acid column, paste all the columns together to obtain
-          #the amino acid sequence which is stored in pastedAAseq
-          #pastedAAseq is evaluated to find which allele variant has the most complete sequence by counting the number of
-          #character, omitting * (notation for unknown amino acid)
-          #the allele with the most compelte sequence is bound to all_gdata
-          if(length(columns[[loci[i]]][[d]])>1){
-            pastedAAseq[[loci[i]]][[d]]<-apply(genotype_variants[[loci[i]]][[d]][[b]][ , columns[[loci[i]]][[d]]] , 1 , paste , collapse = "" )
-            all_gdata[[loci[i]]][[d]]<-rbind(all_gdata[[loci[i]]][[d]], genotype_variants[[loci[i]]][[d]][[b]][names(pastedAAseq[[loci[i]]][[d]][which.max(nchar(gsub("[*^]","",pastedAAseq[[loci[i]]][[d]])))]),])}
-          
-          
-          #if an exon for a non-CWD allele has one amino acid column (i.e. exon 8 for HLA-A), store it into a separate
-          #variable, singleAA_alleles
-          if(length(columns[[loci[i]]][[d]])==1){
-            singleAA_exon[[loci[i]]][[b]]<-genotype_variants[[loci[i]]][[d]][[b]][ncol(genotype_variants[[loci[i]]][[d]][[b]])==7]
-            singleAA_alleles[[loci[i]]]<-singleAA_exon[[loci[i]]][lapply(singleAA_exon[[loci[i]]], length)>0]}}}
-      
-      
+      }
       #evaluates whether a variant amino acid is present and subsets it to nonCWD_checked if there is one
       #otherwise, if nonCWDchecked only contains *, use *
       for(c in 1:length(singleAA_alleles[[loci[i]]])){
@@ -273,33 +292,42 @@ variantAAextractor<-function(loci,genotypefiles){
       }
       
       #binds narrowed down non-CWD alleles for one amino acid exons and inputs it back IF there is a one columned amino acid
-      #if not, nothing happens 
+      #if not, nothing happens
       if(length(columns[[loci[i]]][[d]])==1){
         all_gdata[[loci[i]]][[d]]<-rbind(all_gdata[[loci[i]]][[d]][ncol(all_gdata[[loci[i]]][[d]])==7], rbind(nonCWD_checked[[loci[i]]][[1]], nonCWD_checked[[loci[i]]][[2]]))}}
     
-    }
+    
     #creates a new variable, position_parsed, with pre-defined elements based on
     #column names in AA_segments (i.e. position in the peptide sequence)
     position_parsed[[loci[i]]]<-sapply(colnames(AA_segments[[loci[i]]][,5:ncol(AA_segments[[loci[i]]])]), function(x) NULL)
     
     #for loop to extract only variant amino acids and input them into their respective element positions
-    #in position_parsed 
+    #in position_parsed
     #extracts only variant amino acids, discounting NA and unknown alleles (*)
     for(a in 1:length(all_gdata[[loci[i]]])){
       for(b in 1:length(7:ncol(all_gdata[[loci[i]]][[a]]))){
         position_parsed[[loci[i]]][match(colnames(all_gdata[[loci[i]]][[a]][7:ncol(all_gdata[[loci[i]]][[a]])]), names(position_parsed[[loci[i]]]))][[b]]<-unique(subset(all_gdata[[loci[i]]][[a]][c(5,b+6)], (all_gdata[[loci[i]]][[a]][b+6]!=all_gdata[[loci[i]]][[a]][,b+6][1]) & (all_gdata[[loci[i]]][[a]][b+6] != "*") & (all_gdata[[loci[i]]][[a]][b+6] != "NA")))}}
     
     #removes invariant positions (i.e elements with no rows )
-    #INDELs will be filtered out via a is.null application
+    #inDels will be filtered out via a is.null application
     position_parsed[[loci[i]]]<-position_parsed[[loci[i]]][sapply(position_parsed[[loci[[i]]]][which(lapply(position_parsed[[loci[[i]]]], is.null)==FALSE)], nrow)>0]
     
-    #further subsets position_parsed to only variant positions with polymorphic amino acids 
+    
+    for(d in 1:length(all_gdata[[loci[[i]]]])){
+      for(z in 1:length(position_parsed[[loci[[i]]]])){
+        if(names(position_parsed[[loci[[i]]]])[[z]] %in% colnames(all_gdata[[loci[[i]]]][[d]])==TRUE){
+          position_parsed[[loci[[i]]]][[z]]<-all_gdata[[loci[[i]]]][[d]] %>% select(trimmed_allele, names(position_parsed[[loci[[i]]]])[[z]])
+        }
+      }
+    }
+    
+    #further subsets position_parsed to only variant positions with polymorphic amino acids
     for(g in 1:length(position_parsed[[loci[i]]])){
       position_parsed[[loci[i]]][[g]]<-subset(position_parsed[[loci[i]]][[g]], length(unique(position_parsed[[loci[i]]][[g]][,2]))!=1)}
     
-    #removes elements without polymorphic amino acids 
-    position_parsed[[loci[i]]]<-position_parsed[[loci[i]]][sapply(position_parsed[[loci[i]]], nrow)>0]
     
+    #removes elements without polymorphic amino acids
+    position_parsed[[loci[i]]]<-position_parsed[[loci[i]]][sapply(position_parsed[[loci[i]]], nrow)>0]
     
     variantAApositions[[loci[[i]]]]<-sapply(position_parsed[[loci[[i]]]], function(x) NULL)
     
@@ -307,19 +335,20 @@ variantAAextractor<-function(loci,genotypefiles){
       for(k in 1:length(names(variantAApositions[[loci[[i]]]]))){
         if(any(colnames(all_gdata[[loci[[i]]]][[j]])==names(variantAApositions[[loci[[i]]]])[[k]])){variantAApositions[[loci[[i]]]][names(variantAApositions[[loci[[i]]]])==names(variantAApositions[[loci[[i]]]])][[k]]<-cbind.data.frame(trimmed_allele=all_gdata[[loci[[i]]]][[1]][,5], all_gdata[[loci[[i]]]][[j]][colnames(all_gdata[[loci[[i]]]][[j]])==names(variantAApositions[[loci[[i]]]])[[k]]], stringsAsFactors=FALSE)}}}
     
-    #creates a dataframe that will go into BIGDAWG,     #where each variant position has 2 columns to match each locus specific
+    #creates a dataframe that will go into BIGDAWG,     
+    #where each variant position has 2 columns to match each locus specific
     #column in genotype data
     #columns 1 and 2 of this dataframe are adapted from genotype data columns
-    #patientID and disease status 
+    #patientID and disease status
     mastertable[[loci[[i]]]]<- data.frame(gdata[,c(1,2)], matrix("", ncol = length(variantAApositions[[loci[[i]]]])*2), stringsAsFactors = F)
     mastertablecols[[loci[[i]]]]<-names(position_parsed[[loci[[i]]]])
     
     #repeats variant amino acid positions twice and stores them for future naming of
-    #master table column 
+    #master table column
     for(t in 1:length(mastertablecols[[loci[[i]]]])){
       rep_variantAA[[loci[[i]]]][[t]]<-rep(mastertablecols[[loci[[i]]]][[t]],2)}
     
-    #renames column names 
+    #renames column names
     colnames(mastertable[[loci[[i]]]])<-c("SampleID", "Disease", unlist(rep_variantAA[[loci[[i]]]]))
     
     for(u in 1:length(gdata[loci[[i]]==colnames(gdata)])){
@@ -328,39 +357,64 @@ variantAAextractor<-function(loci,genotypefiles){
       }
     }
   }
+  
+  ########check if all positions in mastertable contain polymorphic amino acids
+  mt_length<-sapply(mastertablecols[[loci[[i]]]], function(x) NULL )
+  
+  #find length of unique amino acids for each pair of columns in mastertable - input into vector 
+  for(y in 1:length(mastertable[[loci[[i]]]][c(TRUE, FALSE)][2:length(mastertable[[loci[[i]]]][c(TRUE, FALSE)])])){
+    mt_length[[y]]<-c(length(unique(mastertable[[loci[[i]]]][c(FALSE, TRUE)][2:length(mastertable[[loci[[i]]]][c(FALSE, TRUE)])][[y]])),length(unique(mastertable[[loci[[i]]]][c(TRUE, FALSE)][2:length(mastertable[[loci[[i]]]][c(FALSE, TRUE)])][[y]])))}
+  
+  mt_remove<-NULL
+  
+  
+  #finds amino acid positions that only have one amino acid variant
+  for(z in 1:length(mt_length)){
+    if(mt_length[[z]][1]==1 & mt_length[[z]][2]==1){
+      mt_remove[[z]]<-names(mt_length)[[z]]
+    }}
+  
+  
+  mt_remove<-mt_remove[!is.na(mt_remove)]
+  
+  #finds those positions in mastertable and removes them 
+  for(w in 1:length(mt_remove)){
+    mastertable[[loci[[i]]]][colnames(mastertable[[loci[[i]]]]) %in% mt_remove[[w]]]<-NULL}
+  
   mastertable #Vinh's addition
 }
+
 
 ##Part 3 - Combination Analyzer##
 combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDLO_list, UMLO_list, variantAAtable, loop){
   
-  #specifies a default motif list if one is not provided 
+  #specifies a default motif list if one is not provided
   if((is.null(motif_list)==TRUE)&(counter==0)){
     motif_list<-c(0,2,3,4,5,6,7)
     #  cat("BIGCAAT: A motif list has not been provided - BIGCAAT will run until maximal OR is reached. \n") ### SJM Currently no way to provide a motif list
   }
   #cat("internal motif_list = ",motif_list,"\n",sep="")
   
-  #BIGDAWG analysis for iteration 0 
-  #set output as T for statistical outputs 
-  silenceBD <- capture.output(BOLO<-BIGDAWG(myData, HLA=F, Run.Tests="L", Missing = 2, Return=T, Output = F, Verbose = F)) ### SJM Verbose OFF, and BIGDAWG output captured to silenceBD
+  #BIGDAWG analysis for iteration 0
+  #set output as T for statistical outputs
+  silenceBD <- capture.output(BOLO<-BIGDAWG(myData, HLA=F, Run.Tests="L", Missing = 2, Cores.Lim = 3L, Return=T, Output = F, Verbose = F)) ### SJM Verbose OFF, and BIGDAWG output captured to silenceBD
   
-  #unlists all lists in columns in the dataframe 
+  #unlists all lists in columns in the dataframe
   BOLO<-data.frame(lapply(as.data.frame(BOLO$L$Set1$OR), function(x) unlist(x)), stringsAsFactors = F)
   
-  #creates dummy_KDLO for comparison to first BOLO ONLY on the 0th iteration 
+  #creates dummy_KDLO for comparison to first BOLO ONLY on the 0th iteration
   if(counter==0){
-    #makes dummy KDLO based on previous BOLO 
+    #makes dummy KDLO based on previous BOLO
     dummy_KDLO<-as.data.frame(t(c("TBA-loc","TBA-allele",1.0,0.5,1.5,0.5,"NS")), stringsAsFactors = F)[rep(seq_len(nrow(as.data.frame(t(c("TBA-loc","TBA-allele",1.0,0.5,1.5,0.5,"NS")), stringsAsFactors = F))), each=nrow(BOLO)),]
     dummy_KDLO[,1]<-BOLO$Locus
     dummy_KDLO[,2]<-BOLO$Allele
     
-    ##MAORI module 
+    ##MAORI module
     #finds difference between dummy and BOLO amino acid variants and inputs into new column
     ##dummy comparison only for 0th iteration
     for(i in 1:nrow(BOLO)){
       #finds OR difference between BOLO and dummy ORs -- subs out "-", for a blank, since only evaluating absolute value of OR diff
-      #adds difference to new column in BOLO 
+      #adds difference to new column in BOLO
       BOLO[i,8]<-gsub("-", "", as.numeric(BOLO[i,]$OR)-as.numeric(subset(subset(dummy_KDLO, grepl(BOLO[i,][[1]], dummy_KDLO[,1])), grepl(BOLO[i,][[2]], subset(dummy_KDLO, grepl(BOLO[i,][[1]], dummy_KDLO[,1]))[,2]))[,3]))[[1]]
     }
     names(BOLO)[8]<-"OR.diff.A"
@@ -377,8 +431,8 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
     names(BOLO)[8]<-"OR.diff.A"
   }
   
-  #ends function if BOLO is empty 
-  if((counter>0) & (nrow(BOLO)==0)){ 
+  #ends function if BOLO is empty
+  if((counter>0) & (nrow(BOLO)==0)){
     return(list(KDLO, BOLO, UMLO))}
   
   #MAORI statement for iteration 2+
@@ -391,11 +445,11 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
       names(BOLO)[9]<-"OR.diff.B"
     }}
   
-  #subsets out NS values 
+  #subsets out NS values
   KDLO<-subset(BOLO,BOLO[,7]=="*")
   
-  ##loop specifications -- LT
   
+  ##loop specifications -- LT
   #filters out predisposing ORs for analysis
   if(loop==1){
     KDLO<-KDLO %>% filter(OR > 1.0)}
@@ -404,42 +458,45 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(loop==2){
     KDLO<-KDLO %>% filter(OR <1.0)}
   
-  if(nrow(KDLO)==1){
+  if(nrow(KDLO)==1| nrow(KDLO)==0){
     return(list(KDLO, BOLO, UMLO="none"))}
   
+  
   #statement for returning BOLO if KDLO=0
-  if((counter>0) & (nrow(KDLO)==0)){ 
+  if((counter>0) & (nrow(KDLO)==0)){
     return(list(KDLO, BOLO, UMLO))}
   
   #subsets out variants that have not shown >0.1 improvement from their previous variants and
-  #singular amino acids 
+  #singular amino acids
   if(counter>1){
     
-    #subsets out OR differences smaller than 0.1 
+    #subsets out OR differences smaller than 0.1
     KDLO<-subset(KDLO, KDLO[,9]>0.1)}
+  
   KDLO<-subset(KDLO, KDLO[,8]>0.1)
   
   #statement for returning KDLO if KDLO=0
   if(nrow(KDLO)==0){
     return(list(KDLO, BOLO, UMLO))}
   
-  #adds in positions from original BOLO that were previously eliminated because of NS or <0.1 variant  
+  #adds in positions from original BOLO that were previously eliminated because of NS or <0.1 variant
   KDLO<-unique(rbind(KDLO, subset(BOLO, BOLO$Locus%in%KDLO$Locus)))[mixedorder(row.names(unique(rbind(KDLO, subset(BOLO, BOLO$Locus%in%KDLO$Locus))))),]
   
-  #finds unassociated positions from current iteration 
+  
+  #finds unassociated positions from current iteration
   unassociated_posi<-unique(BOLO$Locus[!BOLO$Locus %in% KDLO$Locus])
   
   #if length(unassociated_posi==0), return KDLO -- this means KDLO and BOLO are the same
-  #and max improvement has been reached 
+  #and max improvement has been reached
   if(length(unassociated_posi)==0){
     return(list(KDLO, BOLO, UMLO))
   }
   
-  #pair name generation 
+  #pair name generation
   if(counter==0){
     start1<-unique(KDLO$Locus)
     
-    #if nothing is in the KDLO, return KDLO and BOLO ## LT 
+    #if nothing is in the KDLO, return KDLO and BOLO ## LT
     if((length(start1))==0){
       return(list(KDLO, BOLO))
     }
@@ -450,11 +507,11 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
       for(j in (i+1):length(combinames)){ ## range.y = x+1:N
         if(names(combinames)[[j]]!=start1[[i]]){
           combinames[[i]][[j]]<-paste(start1[[i]],names(combinames)[[j]],sep=":")}}}
-    #unlists combinames and omits NAs to obtain all unique possible pair combinations 
+    #unlists combinames and omits NAs to obtain all unique possible pair combinations
     combinames<-unlist(combinames, use.names = F)[!is.na(unlist(combinames, use.names = F))]
   }
   
-  #set start as singular amino acids 
+  #set start as singular amino acids
   if(counter>0){
     start1<-unique(unlist(strsplit(KDLO$Locus, ":")))
     combinames<-NULL}
@@ -463,11 +520,11 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   if(counter>0){
     possible_combis<-sapply(unique(KDLO$Locus), function(x) NULL)
     
-    #finds possible combinations by pasting names of list with singular amino acids not in that pair 
+    #finds possible combinations by pasting names of list with singular amino acids not in that pair
     for(i in 1:length(possible_combis)){
       possible_combis[[i]]<-paste(names(possible_combis[i]), unique(start1[which(start1%in%strsplit(names(possible_combis[i]), ":")[[1]]==FALSE)]), sep=":")}
     
-    #splits those triplets up and sorts them numerically to later on eliminate any duplicates 
+    #splits those triplets up and sorts them numerically to later on eliminate any duplicates
     for(j in 1:length(unlist(possible_combis))){
       combinames[[j]]<-paste(mixedsort(strsplit(unlist(possible_combis, use.names=F), ":")[[j]], decreasing=F), collapse=":")}
     
@@ -504,11 +561,18 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
     return(list(KDLO, BOLO, UMLO))
   }
   
-  #df for pairs -- length is number of unique pairs * 2, 
+  #df for pairs -- length is number of unique pairs * 2,
   combidf<-data.frame(variantAAtable[[loci]][,c(1,2)], matrix("", ncol =length(rep(combinames, 2))), stringsAsFactors = F)
   
-  #fills in column names 
-  colnames(combidf)<-c("SampleID", "Disease", mixedsort(rep(unlist(combinames), 2)))
+  temp<-NULL
+  for(i in 1:length(combinames)){
+    temp[[i]]<-rep(unlist(combinames)[[i]], 2)
+    
+  }
+  #fills in column names
+  colnames(combidf)<-c("SampleID", "Disease", unlist(temp))
+  
+  
   
   #observes number of columns for those needed to be pasted together
   cols=c(1:length(strsplit(combinames[[1]], ":")[[1]]))
@@ -517,7 +581,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
   #[[2]] to contain amino acid combos of FALSE/TRUE
   dfAA<-sapply(1:2, function(x) NULL)
   
-  #fills in element names in the lists formed in the above lists 
+  #fills in element names in the lists formed in the above lists
   for(j in 1:length(dfAA)){
     dfAA[[j]]<-sapply(combinames, function(x) NULL)}
   
@@ -526,6 +590,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
     dfAA[[1]][[i]]<-apply(variantAAtable[[loci]][c(TRUE, FALSE)][strsplit(combinames, ":")[[i]]][,cols], 1, paste, collapse = "~")
     dfAA[[2]][[i]]<-apply(variantAAtable[[loci]][c(FALSE, TRUE)][strsplit(combinames, ":")[[i]]][,cols], 1, paste, collapse = "~")
   }
+  
   
   #fills into pair_df
   combidf[,3:length(combidf)][,c(TRUE,FALSE)]<-dfAA[[1]]
@@ -538,7 +603,7 @@ combiAnalyzer<-function(loci, myData, KDLO, BOLO, UMLO, counter, motif_list, KDL
 }
 
 runCombiAnalyzer <- function(loci, variantAAtable, loop) {
-  #makes empty lists so results of each iteration may be stored 
+  #makes empty lists so results of each iteration may be stored
   BOLO_list<-KDLO_list<-UMLO_list<-list()
   
   #sets motif_list to NULL
@@ -553,10 +618,12 @@ runCombiAnalyzer <- function(loci, variantAAtable, loop) {
   
   ###BEGIN RECURSION -- as long as stop==FALSE, combiAnalyzer will be run until the maximum OR
   #is reached, or the end of the motif_list is reached
-  #the recursive program receives input from combiAnalyzer, where stop=TRUE once the maximum OR 
+  #the recursive program receives input from combiAnalyzer, where stop=TRUE once the maximum OR
   #is reached, either because the BOLO is empty, the KDLO is empty, or no more combination names
-  #can be made 
+  #can be made
   while(stop==FALSE){
+    
+    Start<-proc.time()
     
     #used to inform user what iteration is currently running
     # cat("BIGCAAT:", counter,ifelse(counter==1,"iteration has","iterations have"),"been run \n", sep=" ") #### SJM cleaning up messaging
@@ -564,7 +631,7 @@ runCombiAnalyzer <- function(loci, variantAAtable, loop) {
     
     interim<-combiAnalyzer(loci, myData, BOLO ,KDLO, UMLO, counter, motif_list, KDLO_list, UMLO_list, variantAAtable, loop)
     
-    #adds 1 to the counter with each iteration 
+    #adds 1 to the counter with each iteration
     counter=counter+1
     
     #saves all data to list variables made earlier
@@ -594,24 +661,30 @@ runCombiAnalyzer <- function(loci, variantAAtable, loop) {
     if((is.null(nrow(KDLO))==TRUE) & length(motif_list)==counter){
       cat("BIGCAAT: End of motif_list analysis - maximal OR has been reached.\n") ### SJM added break
     }
+    cat(proc.time()-Start, "\n")
   }
 }
 
-#Combining everything into one function
 BIGCAAT <- function(loci, GenotypeFile) {
+  
   
   if (missing(loci)) { return(cat("Please specify a locus, or vector of loci to analyze.")) }
   
-  if (missing(GenotypeFile)) { 
+  if (missing(GenotypeFile)) {
     #Genotype_Data <- read.table(file.choose(), header = TRUE, sep = "\t", quote = "", na.strings = "****", colClasses = "character", check.names = FALSE)
     GenotypeFile <- fileChoose("Please select a BIGDAWG-formatted genotype datset for analysis.")
-  }  
+  }
   cat("-------------------------------------------------------------------\n BIGCAAT: BIGDAWG Integrated Genotype Converted Amino Acid Testing\n-------------------------------------------------------------------\n") ### SJM Banner
   #  else {
-  Genotype_Data <- read.table(GenotypeFile, header = TRUE, sep = "\t", quote = "", na.strings = "****", colClasses = "character", check.names = FALSE)
+  Genotype_Data <- read.table(GenotypeFile, header = TRUE, sep = "\t", quote = "", na.strings = c("", NA), colClasses = "character", check.names = FALSE)
   #  }
   
   AAData <- variantAAextractor(loci, Genotype_Data) ## SJM "DRB1" was hard coded
+  
+  if(is.list(AAData)==FALSE){
+    return(AAData)
+  }
+  
   #CombiData <- list() ### SJM incorporating locus names to CombiData
   CombiData <- vector("list",length(loci))
   names(CombiData) <- loci
@@ -627,37 +700,37 @@ BIGCAAT <- function(loci, GenotypeFile) {
     for (p in 1:length(loci)) {
       cat("Analyzing the",loci[p],"locus\n",sep=" ") ### SJM added notification
       CombiData[[loci[p]]][[loop]] <- runCombiAnalyzer(loci[p], AAData, loop) #LT added loop as parameter
+      
     }
+    
   }
   #}
   CombiData
 }
 
 
-save(B, file="Bresults.rda")
+A_new<-BIGCAAT("A", "../ltmasterscoding/MS_EUR.txt")
 
 
-
-B<-BIGCAAT("B", "../ltmasterscoding/MS_EUR.txt")
-
-
-#BIGDAWG Data Summarizer 
+#BIGDAWG Data Summarizer
 BIDS<-function(loci, dataset){
+  input_DS <- read.table(dataset, header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
   
-  MS_Data <- read.table(dataset, header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
+  temp<-ds_alleles<-predisposing_summary<-protective_summary<-preMotif_exons<-proMotif_exons<-ds_alleles<-sapply(loci, function(x) NULL)
   
-  temp<-ms_alleles<-predisposing_summary<-protective_summary<-preMotif_exons<-proMotif_exons<-ms_alleles<-sapply(loci, function(x) NULL)
-  
-  #run BIGCAAT
   BIGCAAT_results<-BIGCAAT(loci, dataset)
+  
+  if(is.list(BIGCAAT_results)==FALSE){
+    return(BIGCAAT_results)
+  }
   
   for(j in 1:length(loci)){
     
-    #find locus specific alleles in MS data 
-    ms_alleles[[j]] <- sort(paste(loci[[j]],unlist(unique(c(MS_Data[colnames(MS_Data)==loci[[j]]][[1]],MS_Data[colnames(MS_Data)==loci[[j]]][[2]])))[unlist(unique(c(MS_Data[colnames(MS_Data)==loci[[j]]][[1]],MS_Data[colnames(MS_Data)==loci[[j]]][[2]])))!=""],sep="*"))
+    #find locus specific alleles in input data
+    ds_alleles[[j]] <- sort(paste(loci[[j]],unlist(unique(c(input_DS[colnames(input_DS)==loci[[j]]][[1]],input_DS[colnames(input_DS)==loci[[j]]][[2]])))[unlist(unique(c(input_DS[colnames(input_DS)==loci[[j]]][[1]],input_DS[colnames(input_DS)==loci[[j]]][[2]])))!=""],sep="*"))
     
     if(length(BIGCAAT_results[[loci[[j]]]]$Predisposing$KDLO)==0){
-      BIGCAAT_results[[loci[[j]]]]$Predisposing<-"No statistical data available"}
+      BIGCAAT_results[[loci[[j]]]]$Predisposing<-"No analytical results available"}
     
     else{
       #extract last iteration of BIGCAAT results -- filter to only significant values and respective OR values for each summary
@@ -680,27 +753,27 @@ BIDS<-function(loci, dataset){
         if((preMotif_exons[[loci[[j]]]]$position[[d]] %in% AA_atlas[[loci[[j]]]]$Boundary)==FALSE){
           for(g in 1:length(AA_atlas[[loci[[j]]]])){
             if(between(preMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary[[g]], AA_atlas[[loci[[j]]]]$Boundary[[g+1]])==TRUE){
-              preMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)  
+              preMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)
             }
           }
         }
       }
-      BIGCAAT_results[[loci[[j]]]]$Predisposing[["Predisp Motif Exon Summary"]]<-preMotif_exons[[loci[[j]]]]
+      BIGCAAT_results[[loci[[j]]]]$Predisposing[["Predisposing Motif Exon Summary"]]<-preMotif_exons[[loci[[j]]]]
       
       #predisposing summary
       for(i in 1:nrow(predisposing_summary[[loci[[j]]]])) {
         motif <-paste(loci[[j]], sep="*", paste0(paste(str_split(predisposing_summary[[loci[[j]]]]$Locus, ":")[[i]], str_split(predisposing_summary[[loci[[j]]]]$Allele, "~")[[i]], sep=""), collapse="~"))
         alleles <- findMotif(motif)$trimmed_allele
-        ms_allele <- paste(unique(alleles[alleles %in% ms_alleles[[loci[[j]]]]]),collapse=",")
+        ds_allele <- paste(unique(alleles[alleles %in% ds_alleles[[loci[[j]]]]]),collapse=",")
         
         predisposing_summary[[loci[[j]]]]$motif[i] <- motif
-        predisposing_summary[[loci[[j]]]]$alleles[i] <- ms_allele
+        predisposing_summary[[loci[[j]]]]$alleles[i] <- ds_allele
       }
       BIGCAAT_results[[loci[[j]]]]$Predisposing[["Predisposing Summary"]]<-predisposing_summary[[loci[[j]]]]
       
       if(length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
         for(e in 1:length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
-          temp[[j]][[e]]<-cbind.data.frame(AAalleles="", motif="", MSalleles="", (unique(predisposing_summary[[loci[[j]]]]%>% filter(p.value==unique(predisposing_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
+          temp[[j]][[e]]<-cbind.data.frame(AAalleles="", motif="", DSalleles="", (unique(predisposing_summary[[loci[[j]]]]%>% filter(p.value==unique(predisposing_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
           
           for(i in 1:3){
             temp[[loci[[j]]]][[e]][[i]]<-paste((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]], collapse=",")
@@ -709,11 +782,11 @@ BIDS<-function(loci, dataset){
         BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-temp[[loci[[j]]]]}
       
       else{
-        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-"Statistical repetition was not observed"}
+        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% group_split()}
     }
     
     if(length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)==0){
-      BIGCAAT_results[[loci[[j]]]]$Protective<-"No statistical data available"}
+      BIGCAAT_results[[loci[[j]]]]$Protective<-"No analytical results available"}
     
     else{
       protective_summary[[loci[[j]]]]<-BIGCAAT_results[[loci[[j]]]]$Protective$KDLO[[length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)]][order(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO[[length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)]]$OR, decreasing=T),] %>% filter(sig=="*") %>% filter(OR<1)
@@ -735,7 +808,7 @@ BIDS<-function(loci, dataset){
         if((proMotif_exons[[loci[[j]]]]$position[[d]] %in% AA_atlas[[loci[[j]]]]$Boundary)==FALSE){
           for(g in 1:length(AA_atlas[[loci[[j]]]])){
             if(between(proMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary[[g]], AA_atlas[[loci[[j]]]]$Boundary[[g+1]])==TRUE){
-              proMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)  
+              proMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)
             }
           }
         }
@@ -746,17 +819,17 @@ BIDS<-function(loci, dataset){
       for(i in 1:nrow(protective_summary[[loci[[j]]]])) {
         motif<-paste(loci[[j]], sep="*", paste0(paste(str_split(protective_summary[[loci[[j]]]]$Locus, ":")[[i]], str_split(protective_summary[[loci[[j]]]]$Allele, "~")[[i]], sep=""), collapse="~"))
         alleles <- findMotif(motif)$trimmed_allele
-        ms_allele <- paste(unique(alleles[alleles %in% ms_alleles[[loci[[j]]]]]),collapse=",")
+        ds_allele <- paste(unique(alleles[alleles %in% ds_alleles[[loci[[j]]]]]),collapse=",")
         
         protective_summary[[loci[[j]]]]$motif[i] <- motif
-        protective_summary[[loci[[j]]]]$alleles[i] <- ms_allele
+        protective_summary[[loci[[j]]]]$alleles[i] <- ds_allele
       }
       
       BIGCAAT_results[[loci[[j]]]]$Protective[["Protective Summary"]]<-protective_summary[[loci[[j]]]]
       
       if(length(unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
         for(e in 1:length(unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
-          temp[[loci[[j]]]][[e]]<-cbind.data.frame(AAalleles="", motif="", MSalleles="", (unique(protective_summary[[loci[[j]]]] %>% filter(p.value==unique(protective_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
+          temp[[loci[[j]]]][[e]]<-cbind.data.frame(AAalleles="", motif="", DSalleles="", (unique(protective_summary[[loci[[j]]]] %>% filter(p.value==unique(protective_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
           
           for(i in 1:3){
             temp[[loci[[j]]]][[e]][[i]]<-paste((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]], collapse=",")
@@ -764,10 +837,11 @@ BIDS<-function(loci, dataset){
         BIGCAAT_results[[loci[[j]]]]$Protective$final<-temp[[loci[[j]]]]
       }
       else{
-        BIGCAAT_results[[loci[[j]]]]$Protective$final<-"Statistical repetition was not observed"}
+        BIGCAAT_results[[loci[[j]]]]$Protective$final<-protective_summary[[loci[[j]]]]}
       
     }
   }
   return(BIGCAAT_results)
 }
-thing<-BIDS("DQB1", "../ltmasterscoding/MS_EUR.txt")
+
+
