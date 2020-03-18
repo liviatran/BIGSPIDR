@@ -1,5 +1,5 @@
 ### BIGCAAT: BIGDAWG Integrated Genotype Converted Amino Acid Testing
-### Version 0.3.6
+### Version 0.3.7
 ### Authors: Liva Tran, Vinh Luu, Steven J. Mack
 
 ##Combines Datafile Procession, AA extraction, and combination analyzer into one function. Changes made for redundancy.
@@ -709,17 +709,14 @@ BIGCAAT <- function(loci, GenotypeFile) {
 }
 
 
-A_new<-BIGCAAT("A", "../ltmasterscoding/MS_EUR.txt")
-
-
 #BIGDAWG Data Summarizer
 BIDS<-function(loci, dataset){
-  input_DS <- read.table(dataset, header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
   
+  input_DS <- read.table(dataset, header = TRUE,sep = "\t",quote = "",as.is = TRUE,colClasses = "character",check.names = FALSE,stringsAsFactors = FALSE)
   temp<-ds_alleles<-predisposing_summary<-protective_summary<-preMotif_exons<-proMotif_exons<-ds_alleles<-sapply(loci, function(x) NULL)
   
   BIGCAAT_results<-BIGCAAT(loci, dataset)
-  
+
   if(is.list(BIGCAAT_results)==FALSE){
     return(BIGCAAT_results)
   }
@@ -751,7 +748,7 @@ BIDS<-function(loci, dataset){
         }
         
         if((preMotif_exons[[loci[[j]]]]$position[[d]] %in% AA_atlas[[loci[[j]]]]$Boundary)==FALSE){
-          for(g in 1:length(AA_atlas[[loci[[j]]]])){
+          for(g in 1:(nrow(AA_atlas[[loci[[j]]]])-1)){
             if(between(preMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary[[g]], AA_atlas[[loci[[j]]]]$Boundary[[g+1]])==TRUE){
               preMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)
             }
@@ -764,26 +761,33 @@ BIDS<-function(loci, dataset){
       for(i in 1:nrow(predisposing_summary[[loci[[j]]]])) {
         motif <-paste(loci[[j]], sep="*", paste0(paste(str_split(predisposing_summary[[loci[[j]]]]$Locus, ":")[[i]], str_split(predisposing_summary[[loci[[j]]]]$Allele, "~")[[i]], sep=""), collapse="~"))
         alleles <- findMotif(motif)$trimmed_allele
-        ds_allele <- paste(unique(alleles[alleles %in% ds_alleles[[loci[[j]]]]]),collapse=",")
+        ds_allele <- list(c(unique(alleles[alleles %in% ds_alleles[[loci[[j]]]]])))
         
         predisposing_summary[[loci[[j]]]]$motif[i] <- motif
         predisposing_summary[[loci[[j]]]]$alleles[i] <- ds_allele
       }
       BIGCAAT_results[[loci[[j]]]]$Predisposing[["Predisposing Summary"]]<-predisposing_summary[[loci[[j]]]]
-      
-      if(length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
-        for(e in 1:length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
-          temp[[j]][[e]]<-cbind.data.frame(AAalleles="", motif="", DSalleles="", (unique(predisposing_summary[[loci[[j]]]]%>% filter(p.value==unique(predisposing_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
-          
-          for(i in 1:3){
-            temp[[loci[[j]]]][[e]][[i]]<-paste((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]], collapse=",")
-          }}
-        
-        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-temp[[loci[[j]]]]}
-      
-      else{
-        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% group_split()}
     }
+    
+    if(length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
+      for(e in 1:length(unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
+        temp[[j]][[e]]<-cbind.data.frame(AAalleles="abc", motif="abc", DSalleles="abc", (unique(predisposing_summary[[loci[[j]]]]%>% filter(p.value==unique(predisposing_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
+        
+        for(i in 1:3){
+          temp[[loci[[j]]]][[e]][[i]]<-list(c(append(temp[[loci[[j]]]][[e]][[i]], (predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]])))
+          temp[[loci[[j]]]][[e]][[i]]<-list(c(unlist(temp[[loci[[j]]]][[e]][[i]])[unlist(temp[[loci[[j]]]][[e]][[i]]) != "abc"]))
+        }
+        
+        BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-temp[[loci[[j]]]]
+        
+      }
+      
+    }
+    else{
+      BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-predisposing_summary[[loci[[j]]]] %>% group_by(p.value) %>% group_split()}
+    
+    
+    BIGCAAT_results[[loci[[j]]]]$Predisposing$final<-rbindlist(BIGCAAT_results[[loci[[j]]]]$Predisposing$final)
     
     if(length(BIGCAAT_results[[loci[[j]]]]$Protective$KDLO)==0){
       BIGCAAT_results[[loci[[j]]]]$Protective<-"No analytical results available"}
@@ -806,7 +810,7 @@ BIDS<-function(loci, dataset){
         }
         
         if((proMotif_exons[[loci[[j]]]]$position[[d]] %in% AA_atlas[[loci[[j]]]]$Boundary)==FALSE){
-          for(g in 1:length(AA_atlas[[loci[[j]]]])){
+          for(g in 1:(nrow(AA_atlas[[loci[[j]]]])-1)){
             if(between(proMotif_exons[[loci[[j]]]]$position[[d]], AA_atlas[[loci[[j]]]]$Boundary[[g]], AA_atlas[[loci[[j]]]]$Boundary[[g+1]])==TRUE){
               proMotif_exons[[loci[[j]]]][d,]$exon<-paste("exon", g+1)
             }
@@ -819,7 +823,7 @@ BIDS<-function(loci, dataset){
       for(i in 1:nrow(protective_summary[[loci[[j]]]])) {
         motif<-paste(loci[[j]], sep="*", paste0(paste(str_split(protective_summary[[loci[[j]]]]$Locus, ":")[[i]], str_split(protective_summary[[loci[[j]]]]$Allele, "~")[[i]], sep=""), collapse="~"))
         alleles <- findMotif(motif)$trimmed_allele
-        ds_allele <- paste(unique(alleles[alleles %in% ds_alleles[[loci[[j]]]]]),collapse=",")
+        ds_allele <- list(c(unique(alleles[alleles %in% ds_alleles[[loci[[j]]]]])))
         
         protective_summary[[loci[[j]]]]$motif[i] <- motif
         protective_summary[[loci[[j]]]]$alleles[i] <- ds_allele
@@ -829,17 +833,21 @@ BIDS<-function(loci, dataset){
       
       if(length(unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))!=0){
         for(e in 1:length(unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value))){
-          temp[[loci[[j]]]][[e]]<-cbind.data.frame(AAalleles="", motif="", DSalleles="", (unique(protective_summary[[loci[[j]]]] %>% filter(p.value==unique(protective_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
+          temp[[loci[[j]]]][[e]]<-cbind.data.frame(AAalleles="abc", motif="abc", DSalleles="", (unique(protective_summary[[loci[[j]]]] %>% filter(p.value==unique(protective_summary[[loci[[j]]]]$p.value)[[e]]) %>% select(OR, CI.lower, CI.upper, p.value))),stringsAsFactors=FALSE)
           
           for(i in 1:3){
-            temp[[loci[[j]]]][[e]][[i]]<-paste((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]], collapse=",")
+            temp[[loci[[j]]]][[e]][[i]]<-list(c(append(temp[[loci[[j]]]][[e]][[i]], (protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1) %>% filter(p.value==unique((protective_summary[[loci[[j]]]] %>% group_by(p.value) %>% filter(n()>1))$p.value)[[e]]) %>% ungroup() %>% select(Allele, motif, alleles))[[i]])))
+            temp[[loci[[j]]]][[e]][[i]]<-list(c(unlist(temp[[loci[[j]]]][[e]][[i]])[unlist(temp[[loci[[j]]]][[e]][[i]]) != "abc"]))
           }}
         BIGCAAT_results[[loci[[j]]]]$Protective$final<-temp[[loci[[j]]]]
       }
       else{
         BIGCAAT_results[[loci[[j]]]]$Protective$final<-protective_summary[[loci[[j]]]]}
       
+      BIGCAAT_results[[loci[[j]]]]$Protective$final<-rbindlist(BIGCAAT_results[[loci[[j]]]]$Protective$final)
+      
     }
+    
   }
   return(BIGCAAT_results)
 }
